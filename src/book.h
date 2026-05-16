@@ -78,7 +78,7 @@ void Book_SaveList(const char* listName, HWND hLB) {
     multiStr += '\0';
 
     HKEY hKey;
-    if (RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\IBKR_Tunnel\\Book",
+    if (RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\ibkr_gateway_trading_floor\\Book",
         0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
         RegSetValueExA(hKey, listName, 0, REG_MULTI_SZ,
             (const BYTE*)multiStr.data(), (DWORD)multiStr.size());
@@ -90,7 +90,7 @@ void Book_LoadList(const char* listName, HWND hLB) {
     SendMessage(hLB, LB_RESETCONTENT, 0, 0);
 
     HKEY hKey;
-    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\IBKR_Tunnel\\Book",
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\ibkr_gateway_trading_floor\\Book",
         0, KEY_READ, &hKey) != ERROR_SUCCESS) return;
 
     DWORD type, size = 0;
@@ -112,7 +112,7 @@ void Book_LoadAllLists(HWND hCB) {
     SendMessage(hCB, CB_RESETCONTENT, 0, 0);
 
     HKEY hKey;
-    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\IBKR_Tunnel\\Book",
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\ibkr_gateway_trading_floor\\Book",
         0, KEY_READ, &hKey) != ERROR_SUCCESS) return;
 
     char valueName[256];
@@ -130,7 +130,7 @@ void Book_LoadAllLists(HWND hCB) {
 
 void Book_DeleteList(const char* listName) {
     HKEY hKey;
-    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\IBKR_Tunnel\\Book",
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\ibkr_gateway_trading_floor\\Book",
         0, KEY_WRITE, &hKey) == ERROR_SUCCESS) {
         RegDeleteValueA(hKey, listName);
         RegCloseKey(hKey);
@@ -282,7 +282,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 
             if (strlen(newName) > 0) {
                 HKEY hKey;
-                if (RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\IBKR_Tunnel\\Book",
+                if (RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\ibkr_gateway_trading_floor\\Book",
                     0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
                     const char empty[2] = { '\0', '\0' };
                     RegSetValueExA(hKey, newName, 0, REG_MULTI_SZ, (const BYTE*)empty, 2);
