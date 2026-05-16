@@ -134,14 +134,16 @@ public:
         std::lock_guard<std::mutex> lock(symbolMutex);
         return symbolResults;
     }
-    
+
     void symbolSamples(int reqId, const std::vector<ContractDescription>& contractDescriptions) override {
         std::lock_guard<std::mutex> lock(symbolMutex);
         symbolResults.clear();
         for (const auto& cd : contractDescriptions) {
-            // Only stocks and ETFs
             if (cd.contract.secType == "STK" || cd.contract.secType == "ETF") {
-                symbolResults.push_back(cd.contract.symbol);
+                std::string label = cd.contract.symbol;
+                if (!cd.contract.primaryExchange.empty())
+                    label += "." + cd.contract.primaryExchange;
+                symbolResults.push_back(label);
             }
         }
         if (hSymbolSearchWnd)

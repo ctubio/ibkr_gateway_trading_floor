@@ -23,7 +23,7 @@ void SaveWinPosition(HWND hwnd, const char* subKeyName) {
     
     HKEY hKey;
     char fullPath[256];
-    wsprintf(fullPath, "Software\\ibkr_gateway_trading_floorIBKR_Tunnel\\WindowClass\\%s", subKeyName);
+    wsprintf(fullPath, "Software\\ibkr_gateway_trading_floor\\WindowClass\\%s", subKeyName);
 
     if (RegCreateKeyEx(HKEY_CURRENT_USER, fullPath, 0, NULL, 
         REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) 

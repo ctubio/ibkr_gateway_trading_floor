@@ -18,7 +18,57 @@ static HWND hAutoComplete = NULL;
 
 static HWND hCombo, hListBox, hEdit;
 static HWND hAutoCompleteOwner = NULL;
+static HWND hBtnDelList, hBtnRemove;
+static bool suppressSearch = false;
+static HWND hEditOwner = NULL;
 
+LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam,
+                                   UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+    if (msg == WM_KEYDOWN) {
+        bool acVisible = IsWindowVisible(hAutoComplete);
+
+        if (wParam == VK_DOWN && acVisible) {
+            int count = SendMessage(hAutoComplete, LB_GETCOUNT, 0, 0);
+            int sel = SendMessage(hAutoComplete, LB_GETCURSEL, 0, 0);
+            if (sel == LB_ERR) sel = -1;
+            if (sel + 1 < count)
+                SendMessage(hAutoComplete, LB_SETCURSEL, sel + 1, 0);
+            return 0; // don't pass to edit
+        }
+        if (wParam == VK_UP && acVisible) {
+            int sel = SendMessage(hAutoComplete, LB_GETCURSEL, 0, 0);
+            if (sel > 0)
+                SendMessage(hAutoComplete, LB_SETCURSEL, sel - 1, 0);
+            return 0; // don't pass to edit
+        }
+        if (wParam == VK_RETURN && acVisible) {
+            int sel = SendMessage(hAutoComplete, LB_GETCURSEL, 0, 0);
+            if (sel != LB_ERR) {
+                char sym[64] = {};
+                SendMessageA(hAutoComplete, LB_GETTEXT, sel, (LPARAM)sym);
+                suppressSearch = true;
+                SetWindowTextA(hEdit, sym);
+                suppressSearch = false;
+                ShowWindow(hAutoComplete, SW_HIDE);
+                // move cursor to end of text
+                SendMessage(hEdit, EM_SETSEL, strlen(sym), strlen(sym));
+                SendMessage(hEditOwner, WM_COMMAND, MAKEWPARAM(ID_BOOK_ADD_ITEM, 0), 0);
+            }
+            return 0;
+        }
+        if (wParam == VK_RETURN && !acVisible) {
+            SendMessage(hEditOwner, WM_COMMAND, MAKEWPARAM(ID_BOOK_ADD_ITEM, 0), 0);
+            return 0;
+        }
+        if (wParam == VK_ESCAPE && acVisible) {
+            ShowWindow(hAutoComplete, SW_HIDE);
+            return 0;
+        }
+    }
+    if (msg == WM_NCDESTROY)
+        RemoveWindowSubclass(hWnd, EditSubclassProc, uIdSubclass);
+    return DefSubclassProc(hWnd, msg, wParam, lParam);
+}
 // ─── AutoComplete ─────────────────────────────────────────────────────────────
 
 
@@ -29,9 +79,10 @@ LRESULT CALLBACK AutoCompleteSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LP
         if (sel != LB_ERR) {
             char sym[64] = {};
             SendMessageA(hWnd, LB_GETTEXT, sel, (LPARAM)sym);
+            suppressSearch = true;  // ← prevent EN_CHANGE from searching
             SetWindowTextA(hEdit, sym);
+            suppressSearch = false;
             ShowWindow(hWnd, SW_HIDE);
-            // Trigger add via double-click behaviour
             SendMessage(hAutoCompleteOwner, WM_COMMAND,
                 MAKEWPARAM(ID_BOOK_AUTOCOMPLETE, LBN_DBLCLK), (LPARAM)hWnd);
         }
@@ -63,6 +114,30 @@ void Book_UpdateAutoComplete(HWND hWnd, const std::vector<std::string>& results)
 }
 
 // ─── Registry Helpers ─────────────────────────────────────────────────────────
+std::string Book_GetSelectedList() {
+    int sel = SendMessage(hCombo, CB_GETCURSEL, 0, 0);
+    if (sel == CB_ERR) return "";
+    int len = SendMessage(hCombo, CB_GETLBTEXTLEN, sel, 0);
+    std::string name(len + 1, '\0');
+    SendMessageA(hCombo, CB_GETLBTEXT, sel, (LPARAM)name.data());
+    name.resize(len);
+    return name;
+}
+
+void Book_UpdateControlStates() {
+    std::string list = Book_GetSelectedList();
+    bool hasList = !list.empty();
+    int itemSel = SendMessage(hListBox, LB_GETCURSEL, 0, 0);
+    bool hasItem = itemSel != LB_ERR;
+
+    // Update title
+    std::string title = hasList ? "Book: " + list : "Book";
+    SetWindowTextA(GetParent(hBtnDelList), title.c_str());
+
+    EnableWindow(hBtnDelList, hasList);
+    EnableWindow(hEdit,       hasList);
+    EnableWindow(hBtnRemove,  hasList && hasItem);
+}
 
 void Book_SaveList(const char* listName, HWND hLB) {
     int count = SendMessage(hLB, LB_GETCOUNT, 0, 0);
@@ -137,16 +212,6 @@ void Book_DeleteList(const char* listName) {
     }
 }
 
-std::string Book_GetSelectedList() {
-    int sel = SendMessage(hCombo, CB_GETCURSEL, 0, 0);
-    if (sel == CB_ERR) return "";
-    int len = SendMessage(hCombo, CB_GETLBTEXTLEN, sel, 0);
-    std::string name(len + 1, '\0');
-    SendMessageA(hCombo, CB_GETLBTEXT, sel, (LPARAM)name.data());
-    name.resize(len);
-    return name;
-}
-
 // ─── Window Procedure ────────────────────────────────────────────────────────
 
 LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -166,21 +231,24 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             margin + 188, margin, 80, 24,
             hWnd, (HMENU)ID_BOOK_NEW_LIST, hInst, NULL);
 
-        CreateWindowA("BUTTON", "Delete List",
+        hBtnDelList = CreateWindowA("BUTTON", "Delete List",
             WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
             margin + 276, margin, 80, 24,
             hWnd, (HMENU)ID_BOOK_DEL_LIST, hInst, NULL);
 
         hListBox = CreateWindowA("LISTBOX", NULL,
             WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL | LBS_NOTIFY,
-            margin, margin + 32, 356 - margin, 130,
+            margin, margin + 32, 363 - margin, 130,
             hWnd, (HMENU)ID_BOOK_LISTBOX, hInst, NULL);
 
         hEdit = CreateWindowA("EDIT", NULL,
-            WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-            margin, margin + 170, 180, 24,
+            WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | ES_UPPERCASE,
+            margin, margin + 170, 268, 24,
             hWnd, (HMENU)ID_BOOK_EDIT, hInst, NULL);
 
+        hEditOwner = hWnd;
+        SetWindowSubclass(hEdit, EditSubclassProc, 2, 0);
+        
         hAutoCompleteOwner = hWnd;
         hAutoComplete = CreateWindowExA(
             WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
@@ -193,19 +261,21 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 
         api.setSymbolSearchWindow(hWnd);
 
-        CreateWindowA("BUTTON", "Add",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-            margin + 188, margin + 170, 80, 24,
-            hWnd, (HMENU)ID_BOOK_ADD_ITEM, hInst, NULL);
-
-        CreateWindowA("BUTTON", "Remove",
+        hBtnRemove = CreateWindowA("BUTTON", "Remove",
             WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
             margin + 276, margin + 170, 80, 24,
             hWnd, (HMENU)ID_BOOK_DEL_ITEM, hInst, NULL);
 
         Book_LoadAllLists(hCombo);
+
+        // Force select first item explicitly
+        if (SendMessage(hCombo, CB_GETCOUNT, 0, 0) > 0)
+            SendMessage(hCombo, CB_SETCURSEL, 0, 0);
+
         std::string first = Book_GetSelectedList();
         if (!first.empty()) Book_LoadList(first.c_str(), hListBox);
+
+        Book_UpdateControlStates();
 
         break;
     }
@@ -224,6 +294,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             if (HIWORD(wParam) == CBN_SELCHANGE) {
                 std::string name = Book_GetSelectedList();
                 if (!name.empty()) Book_LoadList(name.c_str(), hListBox);
+                 Book_UpdateControlStates();
             }
             break;
 
@@ -293,6 +364,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                 if (idx != CB_ERR) {
                     SendMessage(hCombo, CB_SETCURSEL, idx, 0);
                     Book_LoadList(newName, hListBox);
+                    Book_UpdateControlStates();
                 }
             }
             break;
@@ -308,6 +380,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                 SendMessage(hListBox, LB_RESETCONTENT, 0, 0);
                 std::string next = Book_GetSelectedList();
                 if (!next.empty()) Book_LoadList(next.c_str(), hListBox);
+                Book_UpdateControlStates();
             }
             break;
         }
@@ -336,6 +409,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                 Book_SaveList(name.c_str(), hListBox);
                 SetWindowTextA(hEdit, "");
                 ShowWindow(hAutoComplete, SW_HIDE);
+                Book_UpdateControlStates();
             }
             break;
         }
@@ -346,21 +420,35 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             std::string name = Book_GetSelectedList();
             SendMessage(hListBox, LB_DELETESTRING, sel, 0);
             Book_SaveList(name.c_str(), hListBox);
+            Book_UpdateControlStates();
             break;
         }
 
         case ID_BOOK_EDIT:
             if (HIWORD(wParam) == EN_CHANGE) {
+                if (suppressSearch) break;
                 char text[256] = {};
                 GetWindowTextA(hEdit, text, sizeof(text));
-                if (strlen(text) >= 2) {
-                    api.searchSymbols(text);
+                
+                // Strip exchange suffix before searching
+                std::string query = text;
+                auto dot = query.find('.');
+                if (dot != std::string::npos)
+                    query = query.substr(0, dot);
+                
+                if (query.size() >= 2) {
+                    api.searchSymbols(query);
                 } else {
                     ShowWindow(hAutoComplete, SW_HIDE);
                 }
             } else if (HIWORD(wParam) == EN_KILLFOCUS) {
                 SetTimer(hWnd, TIMER_DROPDOWN, 150, NULL);
             }
+            break;
+
+        case ID_BOOK_LISTBOX:
+            if (HIWORD(wParam) == LBN_SELCHANGE)
+                Book_UpdateControlStates();
             break;
 
         case ID_BOOK_AUTOCOMPLETE:
@@ -385,8 +473,27 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         break;
 
     case WM_SYMBOL_RESULTS: {
+        char text[256] = {};
+        GetWindowTextA(hEdit, text, sizeof(text));
+        std::string query = text;
+
         auto results = api.getSymbolResults();
-        Book_UpdateAutoComplete(hWnd, results);
+
+        // Filter by what user typed including exchange part
+        if (query.find('.') != std::string::npos) {
+            std::string upper = query;
+            for (auto& c : upper) c = toupper(c);
+            std::vector<std::string> filtered;
+            for (const auto& r : results) {
+                std::string ru = r;
+                for (auto& c : ru) c = toupper(c);
+                if (ru.find(upper) == 0) // starts with what user typed
+                    filtered.push_back(r);
+            }
+            Book_UpdateAutoComplete(hWnd, filtered);
+        } else {
+            Book_UpdateAutoComplete(hWnd, results);
+        }
         break;
     }
 
@@ -425,7 +532,7 @@ void startBook() {
         ShowWindow(hBookWnd, SW_SHOW);
         SetForegroundWindow(hBookWnd);
     } else {
-        int x = CW_USEDEFAULT, y = CW_USEDEFAULT, w = 380, h = 280;
+        int x = CW_USEDEFAULT, y = CW_USEDEFAULT, w = 380, h = 240;
         LoadWinPosition(BOOK_CLASS_NAME, x, y, w, h);
 
         hBookWnd = CreateWindowExA(

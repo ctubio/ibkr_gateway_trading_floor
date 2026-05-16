@@ -29,7 +29,7 @@ all: build/TNT.exe
 build/TNT.exe: lib/build/resources.res src/main.cpp \
                lib/build/libibkr.a lib/build/libbid.a
 	@echo "please wait, building TNT.exe.."
-	@rm -f build/_TNT.exe build/TNT.exe
+	@rm -f build/TNT.exe
 	@$(CXX) \
 	    src/main.cpp \
 	    lib/build/resources.res \
@@ -52,16 +52,8 @@ build/TNT.exe: lib/build/resources.res src/main.cpp \
 	    -lwinmm -ldbghelp -lwinpthread -lpropsys -lole32 \
 	    -lshlwapi -lcomctl32 \
 	    -s \
-	    -o build/_TNT.exe
-	@osslsigncode sign \
-	    -pkcs12 lib/build/cert/localhost.pfx \
-	    -pass "" \
-	    -n "IBKR Tunnel System" \
-	    -i "https://ca.rles-tub.io" \
-	    -t http://timestamp.digicert.com \
-	    -in build/_TNT.exe \
-	    -out build/TNT.exe
-	@rm -f build/_TNT.exe lib/build/resources.res
+	    -o build/TNT.exe
+	@rm -f lib/build/resources.res
 	@echo "Build Complete!"
 	@ls -la build/TNT.exe
 
@@ -167,7 +159,7 @@ lib/build/libibkr.a: $(PROTO_INSTALL)/lib/libprotobuf.a
 # ─── CLEAN ───────────────────────────────────────────────────────────────────
 
 clean:
-	@rm -f build/TNT.exe build/_TNT.exe lib/build/resources.res
+	@rm -f build/TNT.exe lib/build/resources.res
 	@echo "Cleaned"
 
 clean_lib:
