@@ -339,6 +339,67 @@ void PlaySound_Async(int resourceId) {
     sq.cv.notify_one();
 }
 
+LRESULT HandleDarkModeMessages(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    switch (message) {
+        case WM_ERASEBKGND: {
+            HDC hdc = (HDC)wParam;
+            RECT rc;
+            GetClientRect(hWnd, &rc);
+            FillRect(hdc, &rc, Settings_DarkMode() ? hDarkBrush : (HBRUSH)(COLOR_BTNFACE + 1));
+            return 1;
+        }
+        case WM_CTLCOLOREDIT:
+        case WM_CTLCOLORLISTBOX: {
+            if (!Settings_DarkMode()) return 0;
+            SetTextColor((HDC)wParam, DM_TEXT);
+            SetBkColor((HDC)wParam, DM_BG2);
+            return (LRESULT)hDarkBrush2;
+        }
+        case WM_CTLCOLORSTATIC: {
+            if (!Settings_DarkMode()) return 0;
+            SetTextColor((HDC)wParam, DM_TEXT);
+            SetBkColor((HDC)wParam, DM_BG);
+            return (LRESULT)hDarkBrush;
+        }
+        case WM_CTLCOLORBTN: {
+            if (!Settings_DarkMode()) return 0;
+            SetTextColor((HDC)wParam, DM_TEXT);
+            SetBkColor((HDC)wParam, DM_BG);
+            return (LRESULT)hDarkBrush;
+        }
+        case WM_DRAWITEM: {
+            DRAWITEMSTRUCT* dis = (DRAWITEMSTRUCT*)lParam;
+            if (dis->CtlType != ODT_BUTTON) return 0;
+            bool dark = Settings_DarkMode();
+            bool pressed  = (dis->itemState & ODS_SELECTED);
+            bool disabled = (dis->itemState & ODS_DISABLED);
+            COLORREF bgColor     = dark ? (pressed ? RGB(60,60,60) : RGB(50,50,50))
+                                        : (pressed ? RGB(180,180,180) : RGB(225,225,225));
+            COLORREF textColor   = disabled ? RGB(120,120,120) : (dark ? DM_TEXT : LM_TEXT);
+            COLORREF borderColor = dark ? DM_BORDER : RGB(170,170,170);
+            HBRUSH hBg = CreateSolidBrush(bgColor);
+            FillRect(dis->hDC, &dis->rcItem, hBg);
+            DeleteObject(hBg);
+            HPEN hPen = CreatePen(PS_SOLID, 1, borderColor);
+            HPEN hOld = (HPEN)SelectObject(dis->hDC, hPen);
+            SelectObject(dis->hDC, GetStockObject(NULL_BRUSH));
+            Rectangle(dis->hDC, dis->rcItem.left, dis->rcItem.top,
+                    dis->rcItem.right, dis->rcItem.bottom);
+            SelectObject(dis->hDC, hOld);
+            DeleteObject(hPen);
+            char text[128] = {};
+            GetWindowTextA(dis->hwndItem, text, sizeof(text));
+            SetTextColor(dis->hDC, textColor);
+            SetBkMode(dis->hDC, TRANSPARENT);
+            DrawTextA(dis->hDC, text, -1, &dis->rcItem, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            if (dis->itemState & ODS_FOCUS)
+                DrawFocusRect(dis->hDC, &dis->rcItem);
+            return TRUE;
+        }
+    }
+    return 0;
+}
+
 void Session_AddWindow(HWND hWnd) {
     ApplyDarkMode(hWnd);
 

@@ -70,203 +70,170 @@ void addButtons(HWND hWnd, HINSTANCE hInst, LPCSTR buttonText, int x, int y, HME
 
 LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
-    case WM_CREATE:	{
-		LPCREATESTRUCT pcs = (LPCREATESTRUCT)lParam;
-        HINSTANCE hInst = pcs->hInstance;
+        case WM_CREATE:	{
+            LPCREATESTRUCT pcs = (LPCREATESTRUCT)lParam;
+            HINSTANCE hInst = pcs->hInstance;
 
-        int steps = 1;
-        int stepz = 0;
-        //charts from tradingview
-        addButtons(hWnd, hInst, "Bag",              (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_COINS,     3); // total daily eur usd
-        addButtons(hWnd, hInst, "Orders",                 (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_ORDERS,   10); // open, messages, history
-        addButtons(hWnd, hInst, "Diamonds", (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_DIAMONDS,  4); // portfolio + watchlist
+            int steps = 1;
+            int stepz = 0;
+            //charts from tradingview
+            addButtons(hWnd, hInst, "Bag",              (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_COINS,     3); // total daily eur usd
+            addButtons(hWnd, hInst, "Orders",                 (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_ORDERS,   10); // open, messages, history
+            addButtons(hWnd, hInst, "Diamonds", (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_DIAMONDS,  4); // portfolio + watchlist
+            
+            addButtons(hWnd, hInst, "Ticker",             6 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_TICKER,    9);        
+            addButtons(hWnd, hInst, "Levels",             6 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_LEVELS,    8);
+            addButtons(hWnd, hInst, "Timesales",          6 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_TIMESALES, 7);
+            addButtons(hWnd, hInst, "News",               6 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_NEWS,      6);
+
+            addButtons(hWnd, hInst, "Symbols", 12 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_SYMBOLS,   2);
+            addButtons(hWnd, hInst, "Settings",          12 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_SETTINGS,  5);
+
+            api.setWindowHandle(hWnd);
+                    
+            SetTimer(hWnd, TIMER_WATCHDOG, 10000, NULL);
+            SendMessage(hWnd, WM_TIMER, TIMER_WATCHDOG, 0);
+            break;
+        }
         
-        addButtons(hWnd, hInst, "Ticker",             6 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_TICKER,    9);        
-        addButtons(hWnd, hInst, "Levels",             6 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_LEVELS,    8);
-        addButtons(hWnd, hInst, "Timesales",          6 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_TIMESALES, 7);
-        addButtons(hWnd, hInst, "News",               6 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_NEWS,      6);
+        case WM_API_UPDATE:
+            UpdateTrayIcon(hWnd);
+            break;
 
-        addButtons(hWnd, hInst, "Symbols", 12 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_SYMBOLS,   2);
-        addButtons(hWnd, hInst, "Settings",          12 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_SETTINGS,  5);
-
-        api.setWindowHandle(hWnd);
-                
-        SetTimer(hWnd, TIMER_WATCHDOG, 10000, NULL);
-        SendMessage(hWnd, WM_TIMER, TIMER_WATCHDOG, 0);
-		break;
-	}
-    
-    case WM_API_UPDATE:
-        UpdateTrayIcon(hWnd);
-        break;
-
-    case WM_API_ERROR: {
-        std::string* msg = (std::string*)lParam;
-        LogDebug(msg->c_str());
-        delete msg;
-        break;
-    }
-
-    case WM_TIMER:
-        if (wParam == TIMER_DROPDOWN) {
-            KillTimer(hWnd, TIMER_DROPDOWN);
-            ShowWindow(hAutoComplete, SW_HIDE);
+        case WM_API_ERROR: {
+            std::string* msg = (std::string*)lParam;
+            LogDebug(msg->c_str());
+            delete msg;
+            break;
         }
-        if (wParam == TIMER_WATCHDOG) {
-            if (shouldBeConnected && !api.isConnected()) {
-                if (Settings_AutoGateway()) {
-                    EnsureGatewayRunning(hWnd);
+
+        case WM_TIMER:
+            if (wParam == TIMER_DROPDOWN) {
+                KillTimer(hWnd, TIMER_DROPDOWN);
+                ShowWindow(hAutoComplete, SW_HIDE);
+            }
+            if (wParam == TIMER_WATCHDOG) {
+                if (shouldBeConnected && !api.isConnected()) {
+                    if (Settings_AutoGateway()) {
+                        EnsureGatewayRunning(hWnd);
+                    }
+                    api.connect();
+                    UpdateTrayIcon(hWnd);
+                } else if (!shouldBeConnected && api.isConnected()) {
+                    api.disconnect();
+                    UpdateTrayIcon(hWnd);
                 }
-                api.connect();
-                UpdateTrayIcon(hWnd);
-            } else if (!shouldBeConnected && api.isConnected()) {
-                api.disconnect();
-                UpdateTrayIcon(hWnd);
             }
-        }
-        break;
+            break;
 
-    case WM_TRAYICON:
-        if (lParam == WM_LBUTTONUP) {
-            ShowWindow(hWnd, IsWindowVisible(hWnd) ? SW_HIDE : SW_SHOW);
-        }
-        else if (lParam == WM_RBUTTONUP) {
-            HMENU hMenu = CreatePopupMenu();
-            // Determine flags based on current API state
-
-            if (api.isConnected()) {
-                std::string accText = std::string("Account: ") + api.getAccountNumber();
-                AppendMenu(hMenu, (MF_STRING | MF_GRAYED), 0, accText.c_str());
-                AppendMenu(hMenu, MF_STRING, ID_M_DISCONNECT, "Disconnect");
-            } else {
-                AppendMenu(hMenu, MF_STRING, ID_M_CONNECT, "Connect");
+        case WM_TRAYICON:
+            if (lParam == WM_LBUTTONUP) {
+                ShowWindow(hWnd, IsWindowVisible(hWnd) ? SW_HIDE : SW_SHOW);
             }
-            
-            AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
-            AppendMenu(hMenu, MF_STRING, ID_M_COINS, "Bag");
-            AppendMenu(hMenu, MF_STRING, ID_M_DIAMONDS, "Diamonds");
-            AppendMenu(hMenu, MF_STRING, ID_M_ORDERS, "Orders");
-            AppendMenu(hMenu, MF_STRING, ID_M_TICKER, "Ticker");
-            AppendMenu(hMenu, MF_STRING, ID_M_LEVELS, "Levels");
-            AppendMenu(hMenu, MF_STRING, ID_M_TIMESALES, "Timesales");
-            AppendMenu(hMenu, MF_STRING, ID_M_NEWS, "News");
-            AppendMenu(hMenu, MF_STRING, ID_M_SYMBOLS, "Symbols");
-            AppendMenu(hMenu, MF_STRING, ID_M_SETTINGS, "Settings");
-            AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
-            AppendMenu(hMenu, MF_STRING, ID_M_EXIT, "Exit");
+            else if (lParam == WM_RBUTTONUP) {
+                HMENU hMenu = CreatePopupMenu();
+                // Determine flags based on current API state
 
-            // Track where the mouse is to pop up the menu right above the tray
-            POINT pt;
-            GetCursorPos(&pt);
-            SetForegroundWindow(hWnd); // Fixes a notorious Win32 menu-focus bug
-            
-            TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, pt.x, pt.y, 0, hWnd, NULL);
-            DestroyMenu(hMenu);
-        }
-        break;
-
-    case WM_COMMAND:
-        switch (LOWORD(wParam)) {
-            case ID_M_CONNECT:
-                shouldBeConnected = true; // Turn the auto-watchdog back on
-                SendMessage(hWnd, WM_TIMER, TIMER_WATCHDOG, 0);
-                break;
-
-            case ID_M_DISCONNECT:
-                shouldBeConnected = false; // Stop the watchdog from auto-reconnecting
-                SendMessage(hWnd, WM_TIMER, TIMER_WATCHDOG, 0);
-                break;
-
-            case ID_M_EXIT:
-                api.disconnect();
-                if (Settings_KillGatewayOnExit())
-                    KillGateway();
-                Shell_NotifyIcon(NIM_DELETE, &nid); // Remove icon from tray
-                PostQuitMessage(0);
-                break;
+                if (api.isConnected()) {
+                    std::string accText = std::string("Account: ") + api.getAccountNumber();
+                    AppendMenu(hMenu, (MF_STRING | MF_GRAYED), 0, accText.c_str());
+                    AppendMenu(hMenu, MF_STRING, ID_M_DISCONNECT, "Disconnect");
+                } else {
+                    AppendMenu(hMenu, MF_STRING, ID_M_CONNECT, "Connect");
+                }
                 
-            case ID_M_SYMBOLS:
-                startBook();
-                break;
-            case ID_M_COINS:
-                startCoins();
-                break;
-            case ID_M_DIAMONDS:
-                startDiamonds();
-                break;
-            case ID_M_NEWS:
-                startNews();
-                break;
-            case ID_M_TIMESALES:
-                startTimesales();
-                break;
-            case ID_M_LEVELS:
-                startLevels();
-                break;
-            case ID_M_TICKER:
-                startTicker();
-                break;
-            case ID_M_SETTINGS:
-                startSettings();
-                break;
-            case ID_M_ORDERS:
-                startOrders();
-                break;
+                AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+                AppendMenu(hMenu, MF_STRING, ID_M_COINS, "Bag");
+                AppendMenu(hMenu, MF_STRING, ID_M_DIAMONDS, "Diamonds");
+                AppendMenu(hMenu, MF_STRING, ID_M_ORDERS, "Orders");
+                AppendMenu(hMenu, MF_STRING, ID_M_TICKER, "Ticker");
+                AppendMenu(hMenu, MF_STRING, ID_M_LEVELS, "Levels");
+                AppendMenu(hMenu, MF_STRING, ID_M_TIMESALES, "Timesales");
+                AppendMenu(hMenu, MF_STRING, ID_M_NEWS, "News");
+                AppendMenu(hMenu, MF_STRING, ID_M_SYMBOLS, "Symbols");
+                AppendMenu(hMenu, MF_STRING, ID_M_SETTINGS, "Settings");
+                AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+                AppendMenu(hMenu, MF_STRING, ID_M_EXIT, "Exit");
+
+                // Track where the mouse is to pop up the menu right above the tray
+                POINT pt;
+                GetCursorPos(&pt);
+                SetForegroundWindow(hWnd); // Fixes a notorious Win32 menu-focus bug
+                
+                TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, pt.x, pt.y, 0, hWnd, NULL);
+                DestroyMenu(hMenu);
+            }
+            break;
+
+        case WM_COMMAND:
+            switch (LOWORD(wParam)) {
+                case ID_M_CONNECT:
+                    shouldBeConnected = true; // Turn the auto-watchdog back on
+                    SendMessage(hWnd, WM_TIMER, TIMER_WATCHDOG, 0);
+                    break;
+
+                case ID_M_DISCONNECT:
+                    shouldBeConnected = false; // Stop the watchdog from auto-reconnecting
+                    SendMessage(hWnd, WM_TIMER, TIMER_WATCHDOG, 0);
+                    break;
+
+                case ID_M_EXIT:
+                    api.disconnect();
+                    if (Settings_KillGatewayOnExit())
+                        KillGateway();
+                    Shell_NotifyIcon(NIM_DELETE, &nid); // Remove icon from tray
+                    PostQuitMessage(0);
+                    break;
+                    
+                case ID_M_SYMBOLS:
+                    startBook();
+                    break;
+                case ID_M_COINS:
+                    startCoins();
+                    break;
+                case ID_M_DIAMONDS:
+                    startDiamonds();
+                    break;
+                case ID_M_NEWS:
+                    startNews();
+                    break;
+                case ID_M_TIMESALES:
+                    startTimesales();
+                    break;
+                case ID_M_LEVELS:
+                    startLevels();
+                    break;
+                case ID_M_TICKER:
+                    startTicker();
+                    break;
+                case ID_M_SETTINGS:
+                    startSettings();
+                    break;
+                case ID_M_ORDERS:
+                    startOrders();
+                    break;
+            }
+            break;
+
+        case WM_CLOSE:
+            ShowWindow(hWnd, SW_HIDE); // "Close" just hides it to tray
+            return 0;
+
+        case WM_MOVE:
+            SaveWinPosition(hWnd);
+            break;
+            
+        case WM_DESTROY:
+            SaveWinPosition(hWnd);
+            Shell_NotifyIcon(NIM_DELETE, &nid);
+            PostQuitMessage(0);
+            break;
+
+        default: {
+            LRESULT res = HandleDarkModeMessages(hWnd, message, wParam, lParam);
+            if (res) return res;
+            return DefWindowProc(hWnd, message, wParam, lParam);
         }
-        break;
-
-    case WM_CLOSE:
-        ShowWindow(hWnd, SW_HIDE); // "Close" just hides it to tray
-        return 0;
-
-	case WM_MOVE:
-		SaveWinPosition(hWnd);
-        break;
-		
-	case WM_DESTROY:
-		SaveWinPosition(hWnd);
-		Shell_NotifyIcon(NIM_DELETE, &nid);
-		PostQuitMessage(0);
-		break;
-
-    case WM_ERASEBKGND: {
-        HDC hdc = (HDC)wParam;
-        RECT rc;
-        GetClientRect(hWnd, &rc);
-        FillRect(hdc, &rc, Settings_DarkMode() ? hDarkBrush : (HBRUSH)(COLOR_BTNFACE + 1));
-        return 1;
-    }
-
-    // Edit boxes, listboxes
-    case WM_CTLCOLOREDIT:
-    case WM_CTLCOLORLISTBOX: {
-        if (!Settings_DarkMode()) break;
-        HDC hdc = (HDC)wParam;
-        SetTextColor(hdc, DM_TEXT);
-        SetBkColor(hdc, DM_BG2);
-        return (LRESULT)hDarkBrush2;
-    }
-
-    // Static labels
-    case WM_CTLCOLORSTATIC: {
-        if (!Settings_DarkMode()) break;
-        HDC hdc = (HDC)wParam;
-        SetTextColor(hdc, DM_TEXT);
-        SetBkColor(hdc, DM_BG);
-        return (LRESULT)hDarkBrush;
-    }
-
-    // Buttons — BS_AUTOCHECKBOX and regular buttons
-    case WM_CTLCOLORBTN: {
-        if (!Settings_DarkMode()) break;
-        HDC hdc = (HDC)wParam;
-        SetTextColor(hdc, DM_TEXT);
-        SetBkColor(hdc, DM_BG);
-        return (LRESULT)hDarkBrush;
-    }
-		
-    default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
     }
     return 0;
 }
