@@ -28,7 +28,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
     registerWindowClass(hInst, WndProcLevels,    LEVELS_CLASS_NAME,     8);
     registerWindowClass(hInst, WndProcOrders,    ORDERS_CLASS_NAME,    10);
     registerWindowClass(hInst, WndProcDashboard, DASHBOARD_CLASS_NAME,  1);
-    registerSystemIcon(hInst);
+	startDashboard(hInst);
+
+    nid.cbSize = sizeof(NOTIFYICONDATA);
+    nid.hWnd = g_AppWindows[DASHBOARD_CLASS_NAME];
+    nid.uID = 1;
+    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    nid.uCallbackMessage = WM_TRAYICON;
+    nid.hIcon = hIconOffline;
+    lstrcpy(nid.szTip, "Offline");
+    Shell_NotifyIcon(NIM_ADD, &nid);
 
     Session_RestoreWindows(startBook, startCoins, startDiamonds, startNews, startSettings, startTimesales, startLevels, startTicker, startOrders);
 

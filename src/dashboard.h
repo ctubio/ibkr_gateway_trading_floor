@@ -1,7 +1,8 @@
 #pragma once
 
-HWND hDBWnd = NULL;
 static const char* DASHBOARD_CLASS_NAME = "TNTDashboardClass";
+
+void startDashboard(HINSTANCE hInst) { startGenericWindow(DASHBOARD_CLASS_NAME, "IBKR Gateway: Offline", L"IBKRGatewayClient.Dashboard", 312, 70, hInst); }
 
 #define WM_TRAYICON (WM_USER + 1)
 NOTIFYICONDATA nid = { 0 };
@@ -215,37 +216,9 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
     return 0;
 }
 
-void startDashboard(HINSTANCE hInst) {
-    // 2. Create the Dashboard Window
-	int x = CW_USEDEFAULT, y = CW_USEDEFAULT, w = 312, h = 70;
-	LoadWinPosition(DASHBOARD_CLASS_NAME, x, y, w, h);
-	
-    hDBWnd = CreateWindow(DASHBOARD_CLASS_NAME, "IBKR Gateway: Offline", 
-        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, x, y, w, h,
-        NULL, NULL, hInst, NULL);
-	ShowWindow(hDBWnd, SW_SHOW);
-	UpdateWindow(hDBWnd);
-
-    SetWindowTaskbarId(hDBWnd, L"IBKRTunnel.Dashboard");
-}
-
-void registerSystemIcon(HINSTANCE hInst) {
-	startDashboard(hInst);
-
-    // 3. Initialize Tray Icon
-    nid.cbSize = sizeof(NOTIFYICONDATA);
-    nid.hWnd = hDBWnd;
-    nid.uID = 1;
-    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-    nid.uCallbackMessage = WM_TRAYICON;
-    nid.hIcon = hIconOffline;
-    lstrcpy(nid.szTip, "Offline");
-    Shell_NotifyIcon(NIM_ADD, &nid);
-}
-
 HANDLE mutex_on() {
 	// 1. Create a unique name for your Mutex (use a GUID or a unique string)
-    HANDLE hMutex = CreateMutex(NULL, TRUE, "Global\\IBKRTunnelMutex_17072025");
+    HANDLE hMutex = CreateMutex(NULL, TRUE, "Global\\IBKRGatewayClientMutex_17072025");
 
     // 2. Check if the Mutex already exists
     if (GetLastError() == ERROR_ALREADY_EXISTS) {

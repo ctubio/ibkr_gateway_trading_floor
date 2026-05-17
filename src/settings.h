@@ -1,7 +1,8 @@
 #pragma once
 
-HWND hSettingsWnd = NULL;
 static const char* SETTINGS_CLASS_NAME = "TNTSettingsWindowClass";
+
+void startSettings() { startGenericWindow(SETTINGS_CLASS_NAME, "Settings", L"IBKRGatewayClient.Settings", 300, 80); }
 
 #define ID_SETTINGS_KILL_GATEWAY 4001
 
@@ -48,32 +49,11 @@ LRESULT CALLBACK WndProcSettings(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
     case WM_DESTROY:
         SaveWinPosition(hWnd, SETTINGS_CLASS_NAME);
         Session_RemoveWindow(hWnd);
-        hSettingsWnd = NULL;
+        g_AppWindows[SETTINGS_CLASS_NAME] = NULL;
         break;
 
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
     return 0;
-}
-
-void startSettings() {
-    if (hSettingsWnd && IsWindow(hSettingsWnd)) {
-        ShowWindow(hSettingsWnd, SW_SHOW);
-        SetForegroundWindow(hSettingsWnd);
-    } else {
-        int x = CW_USEDEFAULT, y = CW_USEDEFAULT, w = 300, h = 80;
-        LoadWinPosition(SETTINGS_CLASS_NAME, x, y, w, h);
-
-        hSettingsWnd = CreateWindowExA(
-            WS_EX_APPWINDOW,
-            SETTINGS_CLASS_NAME,
-            "Settings",
-            WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE,
-            x, y, w, h,
-            NULL, NULL, GetModuleHandle(NULL), NULL
-        );
-
-        SetWindowTaskbarId(hSettingsWnd, L"IBKRTunnel.Settings");
-    }
 }

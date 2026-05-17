@@ -7,6 +7,27 @@
 #include <iostream>
 #include <chrono>
 
+
+#include <initguid.h>
+#include <propkey.h>
+#include <propvarutil.h>
+
+constexpr const char* APP_REG_ROOT = "Software\\ibkr-gateway-trading-floor";
+
+std::unordered_map<std::string, HWND> g_AppWindows;
+
+void SetWindowTaskbarId(HWND hWnd, const wchar_t* id) {
+    IPropertyStore* pps;
+    if (SUCCEEDED(SHGetPropertyStoreForWindow(hWnd, IID_PPV_ARGS(&pps)))) {
+        PROPVARIANT pv;
+        InitPropVariantFromString(id, &pv);
+        pps->SetValue(PKEY_AppUserModel_ID, pv);
+        pps->Commit();
+        PropVariantClear(&pv);
+        pps->Release();
+    }
+}
+
 void SaveWinPosition(HWND hwnd, const char* subKeyName) {
     WINDOWPLACEMENT wp;
     wp.length = sizeof(WINDOWPLACEMENT);
@@ -23,7 +44,7 @@ void SaveWinPosition(HWND hwnd, const char* subKeyName) {
     
     HKEY hKey;
     char fullPath[256];
-    wsprintf(fullPath, "Software\\ibkr_gateway_trading_floor\\WindowClass\\%s", subKeyName);
+    wsprintf(fullPath, "%s\\WindowSettings\\%s", APP_REG_ROOT, subKeyName);
 
     if (RegCreateKeyEx(HKEY_CURRENT_USER, fullPath, 0, NULL, 
         REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) 
@@ -39,7 +60,7 @@ void SaveWinPosition(HWND hwnd, const char* subKeyName) {
 bool LoadWinPosition(const char* subKeyName, int &x, int &y, int &w, int &h) {
     HKEY hKey;
     char fullPath[256];
-    wsprintf(fullPath, "Software\\ibkr_gateway_trading_floor\\WindowClass\\%s", subKeyName);
+    wsprintf(fullPath, "%s\\WindowSettings\\%s", APP_REG_ROOT, subKeyName);
 
     if (RegOpenKeyEx(HKEY_CURRENT_USER, fullPath, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
         DWORD dwSize = sizeof(DWORD);
@@ -51,6 +72,28 @@ bool LoadWinPosition(const char* subKeyName, int &x, int &y, int &w, int &h) {
         return true;
     }
     return false;
+}
+
+void startGenericWindow(const char* className, const char* title, const wchar_t* taskbarId, int defaultW, int defaultH, HINSTANCE hInst = NULL) {
+    HWND& hWnd = g_AppWindows[className];
+    
+    if (hWnd && IsWindow(hWnd)) {
+        ShowWindow(hWnd, SW_SHOW);
+        SetForegroundWindow(hWnd);
+        return;
+    }
+
+    int x = CW_USEDEFAULT, y = CW_USEDEFAULT, w = defaultW, h = defaultH;
+    LoadWinPosition(className, x, y, w, h);
+    if (hInst) {
+        hWnd = CreateWindow(className, title, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, x, y, w, h, NULL, NULL, hInst, NULL);
+        ShowWindow(hWnd, SW_SHOW);
+        UpdateWindow(hWnd);
+    } else {
+        hWnd = CreateWindowExA(WS_EX_APPWINDOW, className, title, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE, x, y, w, h, NULL, NULL, GetModuleHandle(NULL), NULL);   
+    }
+
+    SetWindowTaskbarId(hWnd, taskbarId);
 }
 
 HICON CreateGrayIcon(HICON hOriginal) {
@@ -133,11 +176,11 @@ void Session_AddWindow(HWND hWnd) {
     GetClassNameA(hWnd, className, sizeof(className));
     // Load existing list
     HKEY hKey;
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Settings", APP_REG_ROOT);
     std::vector<std::string> windows;
 
-    if (RegOpenKeyExA(HKEY_CURRENT_USER,
-        "Software\\ibkr_gateway_trading_floor\\Settings",
-        0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, fullPath, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
         DWORD size = 0;
         RegQueryValueExA(hKey, "OpenWindows", NULL, NULL, NULL, &size);
         if (size > 0) {
@@ -160,9 +203,7 @@ void Session_AddWindow(HWND hWnd) {
     for (const auto& w : windows) { multiStr += w; multiStr += '\0'; }
     multiStr += '\0';
 
-    if (RegCreateKeyExA(HKEY_CURRENT_USER,
-        "Software\\ibkr_gateway_trading_floor\\Settings",
-        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+    if (RegCreateKeyExA(HKEY_CURRENT_USER, fullPath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
         RegSetValueExA(hKey, "OpenWindows", 0, REG_MULTI_SZ,
             (const BYTE*)multiStr.data(), (DWORD)multiStr.size());
         RegCloseKey(hKey);
@@ -174,11 +215,11 @@ void Session_RemoveWindow(HWND hWnd) {
     GetClassNameA(hWnd, className, sizeof(className));
     
     HKEY hKey;
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Settings", APP_REG_ROOT);
     std::vector<std::string> windows;
 
-    if (RegOpenKeyExA(HKEY_CURRENT_USER,
-        "Software\\ibkr_gateway_trading_floor\\Settings",
-        0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, fullPath, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
         DWORD size = 0;
         RegQueryValueExA(hKey, "OpenWindows", NULL, NULL, NULL, &size);
         if (size > 0) {
@@ -198,9 +239,7 @@ void Session_RemoveWindow(HWND hWnd) {
     for (const auto& w : windows) { multiStr += w; multiStr += '\0'; }
     multiStr += '\0';
 
-    if (RegCreateKeyExA(HKEY_CURRENT_USER,
-        "Software\\ibkr_gateway_trading_floor\\Settings",
-        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+    if (RegCreateKeyExA(HKEY_CURRENT_USER, fullPath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
         RegSetValueExA(hKey, "OpenWindows", 0, REG_MULTI_SZ,
             (const BYTE*)multiStr.data(), (DWORD)multiStr.size());
         RegCloseKey(hKey);
@@ -219,9 +258,9 @@ void Session_RestoreWindows(
     const std::function<void()>& startOrders
 ) {
     HKEY hKey;
-    if (RegOpenKeyExA(HKEY_CURRENT_USER,
-        "Software\\ibkr_gateway_trading_floor\\Settings",
-        0, KEY_READ, &hKey) != ERROR_SUCCESS) return;
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Settings", APP_REG_ROOT);
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, fullPath, 0, KEY_READ, &hKey) != ERROR_SUCCESS) return;
 
     DWORD size = 0;
     RegQueryValueExA(hKey, "OpenWindows", NULL, NULL, NULL, &size);
@@ -249,9 +288,9 @@ void Session_RestoreWindows(
 
 void Settings_Save(const char* key, DWORD value) {
     HKEY hKey;
-    if (RegCreateKeyExA(HKEY_CURRENT_USER,
-        "Software\\ibkr_gateway_trading_floor\\Settings",
-        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Settings", APP_REG_ROOT);
+    if (RegCreateKeyExA(HKEY_CURRENT_USER, fullPath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
         RegSetValueExA(hKey, key, 0, REG_DWORD, (const BYTE*)&value, sizeof(DWORD));
         RegCloseKey(hKey);
     }
@@ -259,10 +298,10 @@ void Settings_Save(const char* key, DWORD value) {
 
 DWORD Settings_Load(const char* key, DWORD defaultValue) {
     HKEY hKey;
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Settings", APP_REG_ROOT);
     DWORD value = defaultValue;
-    if (RegOpenKeyExA(HKEY_CURRENT_USER,
-        "Software\\ibkr_gateway_trading_floor\\Settings",
-        0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, fullPath, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
         DWORD size = sizeof(DWORD);
         RegQueryValueExA(hKey, key, NULL, NULL, (LPBYTE)&value, &size);
         RegCloseKey(hKey);
@@ -295,8 +334,9 @@ bool IsProcessRunning(const char* processName) {
 std::string GetGatewayPath() {
     // 1. Try registry first
     HKEY hKey;
-    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\ibkr_gateway_trading_floor\\Settings",
-        0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Settings", APP_REG_ROOT);
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, fullPath, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
         char path[MAX_PATH] = {};
         DWORD size = sizeof(path);
         if (RegQueryValueExA(hKey, "GatewayPath", NULL, NULL,
@@ -311,8 +351,9 @@ std::string GetGatewayPath() {
 
 void SaveGatewayPath(const std::string& path) {
     HKEY hKey;
-    if (RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\ibkr_gateway_trading_floor\\Settings",
-        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Settings", APP_REG_ROOT);
+    if (RegCreateKeyExA(HKEY_CURRENT_USER, fullPath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
         RegSetValueExA(hKey, "GatewayPath", 0, REG_SZ,
             (const BYTE*)path.c_str(), (DWORD)path.size() + 1);
         RegCloseKey(hKey);
@@ -337,9 +378,10 @@ std::string AskGatewayPath(HWND hParent) {
 
     return "";
 }
-
+bool alreadyEnsureGatewayRunning = false;
 void EnsureGatewayRunning(HWND hParent) {
-    if (IsProcessRunning("ibgateway.exe")) return;
+    if (alreadyEnsureGatewayRunning ||IsProcessRunning("ibgateway.exe")) return;
+    alreadyEnsureGatewayRunning = true;
 
     // Get path from registry or default
     std::string path = GetGatewayPath();
@@ -362,6 +404,8 @@ void EnsureGatewayRunning(HWND hParent) {
         if (path.empty()) return; // user cancelled
         SaveGatewayPath(path);
     }
+
+    alreadyEnsureGatewayRunning = false;
 
     ShellExecuteA(NULL, "open", path.c_str(), NULL, NULL, SW_SHOW);
 }
@@ -388,20 +432,4 @@ void KillGateway() {
         } while (Process32Next(hSnap, &pe));
     }
     CloseHandle(hSnap);
-}
-
-#include <initguid.h>
-#include <propkey.h>
-#include <propvarutil.h>
-
-void SetWindowTaskbarId(HWND hWnd, const wchar_t* id) {
-    IPropertyStore* pps;
-    if (SUCCEEDED(SHGetPropertyStoreForWindow(hWnd, IID_PPV_ARGS(&pps)))) {
-        PROPVARIANT pv;
-        InitPropVariantFromString(id, &pv);
-        pps->SetValue(PKEY_AppUserModel_ID, pv);
-        pps->Commit();
-        PropVariantClear(&pv);
-        pps->Release();
-    }
 }

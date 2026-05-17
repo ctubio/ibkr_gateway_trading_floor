@@ -1,7 +1,12 @@
 #pragma once
 
-HWND hBookWnd = NULL;
 static const char* BOOK_CLASS_NAME = "TNTBookWindowClass";
+
+void startBook() {
+    startGenericWindow(BOOK_CLASS_NAME, "Book", L"IBKRGatewayClient.Book", 373, 240);
+    
+    api.setSymbolSearchWindow(g_AppWindows[BOOK_CLASS_NAME]);
+}
 
 static HWND hAutoComplete = NULL;
 
@@ -58,8 +63,9 @@ void Book_SaveFullList(const char* listName, const std::vector<std::string>& ite
     multiStr += '\0';
 
     HKEY hKey;
-    if (RegCreateKeyExA(HKEY_CURRENT_USER, "Software\\ibkr_gateway_trading_floor\\Book",
-        0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Book", APP_REG_ROOT);
+    if (RegCreateKeyExA(HKEY_CURRENT_USER, fullPath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
         RegSetValueExA(hKey, listName, 0, REG_MULTI_SZ,
             (const BYTE*)multiStr.data(), (DWORD)multiStr.size());
         RegCloseKey(hKey);
@@ -73,8 +79,9 @@ void Book_LoadList(const char* listName, HWND hLB) {
     bookItems.clear();
 
     HKEY hKey;
-    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\ibkr_gateway_trading_floor\\Book",
-        0, KEY_READ, &hKey) != ERROR_SUCCESS) return;
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Book", APP_REG_ROOT);
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, fullPath, 0, KEY_READ, &hKey) != ERROR_SUCCESS) return;
 
     DWORD type, size = 0;
     RegQueryValueExA(hKey, listName, NULL, &type, NULL, &size);
@@ -97,8 +104,9 @@ void Book_LoadAllLists(HWND hCB) {
     SendMessage(hCB, CB_RESETCONTENT, 0, 0);
 
     HKEY hKey;
-    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\ibkr_gateway_trading_floor\\Book",
-        0, KEY_READ, &hKey) != ERROR_SUCCESS) return;
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Book", APP_REG_ROOT);
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, fullPath, 0, KEY_READ, &hKey) != ERROR_SUCCESS) return;
 
     char valueName[256];
     DWORD index = 0, nameSize = sizeof(valueName);
@@ -115,8 +123,9 @@ void Book_LoadAllLists(HWND hCB) {
 
 void Book_DeleteList(const char* listName) {
     HKEY hKey;
-    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\ibkr_gateway_trading_floor\\Book",
-        0, KEY_WRITE, &hKey) == ERROR_SUCCESS) {
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Book", APP_REG_ROOT);
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, fullPath, 0, KEY_WRITE, &hKey) == ERROR_SUCCESS) {
         RegDeleteValueA(hKey, listName);
         RegCloseKey(hKey);
     }
@@ -436,9 +445,9 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 
             if (strlen(newName) > 0) {
                 HKEY hKey;
-                if (RegCreateKeyExA(HKEY_CURRENT_USER,
-                    "Software\\ibkr_gateway_trading_floor\\Book",
-                    0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+                char fullPath[256];
+                wsprintf(fullPath, "%s\\Book", APP_REG_ROOT);
+                if (RegCreateKeyExA(HKEY_CURRENT_USER, fullPath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
                     const char empty[2] = { '\0', '\0' };
                     RegSetValueExA(hKey, newName, 0, REG_MULTI_SZ, (const BYTE*)empty, 2);
                     RegCloseKey(hKey);
@@ -597,33 +606,11 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         SaveWinPosition(hWnd, BOOK_CLASS_NAME);
         Session_RemoveWindow(hWnd);
         api.setSymbolSearchWindow(NULL);
-        hBookWnd = NULL;
+        g_AppWindows[BOOK_CLASS_NAME] = NULL;
         break;
 
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
     return 0;
-}
-
-void startBook() {
-    if (hBookWnd && IsWindow(hBookWnd)) {
-        ShowWindow(hBookWnd, SW_SHOW);
-        SetForegroundWindow(hBookWnd);
-    } else {
-        int x = CW_USEDEFAULT, y = CW_USEDEFAULT, w = 373, h = 240;
-        LoadWinPosition(BOOK_CLASS_NAME, x, y, w, h);
-
-        hBookWnd = CreateWindowExA(
-            WS_EX_APPWINDOW,
-            BOOK_CLASS_NAME,
-            "Book",
-            WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE,
-            x, y, w, h,
-            NULL, NULL, GetModuleHandle(NULL), NULL
-        );
-
-        api.setSymbolSearchWindow(hBookWnd);
-        SetWindowTaskbarId(hBookWnd, L"IBKRTunnel.Book");
-    }
 }

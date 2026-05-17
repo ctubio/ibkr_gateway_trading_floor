@@ -1,4 +1,4 @@
-# ibkr_gateway_trading_floor
+# ibkr-gateway-trading-floor
 
 A Windows tray application for trades using Interactive Brokers Gateway.
 
@@ -31,4 +31,4 @@ Cross-compiled on Linux (Raspberry Pi) targeting Windows x86_64.
 
 ## Uninstall
 - Delete `TNT.exe`
-- Open the Registry Editor and delete the folder: `Computer\HKEY_CURRENT_USER\Software\ibkr_gateway_trading_floor`
+- Open the Registry Editor and delete the folder: `Computer\HKEY_CURRENT_USER\Software\ibkr-gateway-trading-floor`
