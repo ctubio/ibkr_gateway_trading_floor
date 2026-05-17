@@ -1,17 +1,17 @@
 # ibkr_gateway_trading_floor
 
-A Windows tray application for Interactive Brokers Gateway.
+A Windows tray application for trades using Interactive Brokers Gateway.
 
 ## Features
-- Tray icon with connection status (gray = offline)
+- Tray icon with connection status
 - Auto-connects to IB Gateway on startup
-- Watchdog reconnection every 10 seconds
-- Symbol book — create lists of symbols with autocomplete search
+- Watchdog reconnection
+- Symbol book — create lists of symbols
 - Window position persistence via registry
 
 ## Requirements
-- Interactive Brokers Gateway installed
 - IBKR Pro account
+- IBKR Gateway for Windows installed from https://www.interactivebrokers.com/en/trading/ibgateway-latest.php
 
 ## Build
 Cross-compiled on Linux (Raspberry Pi) targeting Windows x86_64.
@@ -31,7 +31,4 @@ Cross-compiled on Linux (Raspberry Pi) targeting Windows x86_64.
 
 ## Uninstall
 - Delete `TNT.exe`
-- Open the Registry Editor and delete the folder `Computer\HKEY_CURRENT_USER\Software\ibkr_gateway_trading_floor`.
-
-## External Dependency
-- Download and install IBKR Gateway for Windows from https://www.interactivebrokers.com/en/trading/ibgateway-latest.php
+- Open the Registry Editor and delete the folder: `Computer\HKEY_CURRENT_USER\Software\ibkr_gateway_trading_floor`
