@@ -8,38 +8,38 @@ void startDashboard(HINSTANCE hInst) { startGenericWindow(DASHBOARD_CLASS_NAME, 
 NOTIFYICONDATA nid = { 0 };
 
 void UpdateTrayIcon(HWND hWnd) {
-    std::string tooltipText;
-    std::string windowTitle = "IBKR Gateway: ";
+    std::string tooltip;
+    std::string title = "IBKR Gateway: ";
     HICON hIcon;
 
-    if (api.isConnected()) {
-        std::string accNum = api.getAccountNumber();
-        if (accNum.empty()) {
-            tooltipText = "Connecting...";
-            windowTitle += tooltipText;
-            hIcon = hIconOffline;
-        } else {
-            tooltipText = "Account: " + accNum;
-            windowTitle = tooltipText;
-            hIcon = hIconConnected;
-        }
+    if (!api.isConnected()) {
+        tooltip = "Offline";
+        title  += tooltip;
+        hIcon   = hIconOffline;
     } else {
-        tooltipText = "Offline";
-        windowTitle += tooltipText;
-        hIcon = hIconOffline;
+        std::string acc = api.getAccountNumber();
+        if (acc.empty()) {
+            tooltip = "Connecting...";
+            title  += tooltip;
+            hIcon   = hIconOffline;
+        } else {
+            std::string md = api.isMarketDataConnected() ? "MD✓" : "MD✗";
+            std::string tr = api.isTradingConnected()    ? "TR✓" : "TR✗";
+            tooltip = acc + " | " + md + " " + tr;
+            title   = "Account: " + acc;
+            hIcon   = api.isMarketDataConnected() && api.isTradingConnected()
+                    ? hIconConnected : hIconOffline;
+        }
     }
 
-    strncpy(nid.szTip, tooltipText.c_str(), sizeof(nid.szTip) - 1);
+    strncpy(nid.szTip, tooltip.c_str(), sizeof(nid.szTip) - 1);
     nid.szTip[sizeof(nid.szTip) - 1] = '\0';
-
     nid.uFlags = NIF_TIP | NIF_ICON;
     nid.hIcon  = hIcon;
     Shell_NotifyIcon(NIM_MODIFY, &nid);
-
-    // Update window icon
     SendMessage(hWnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
     SendMessage(hWnd, WM_SETICON, ICON_BIG,   (LPARAM)hIcon);
-    SetWindowTextA(hWnd, windowTitle.c_str());
+    SetWindowTextA(hWnd, title.c_str());
 }
 
 void addButtons(HWND hWnd, HINSTANCE hInst, LPCSTR buttonText, int x, int y, HMENU menuId, int iconId) {
@@ -77,16 +77,16 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         int steps = 1;
         int stepz = 0;
         //charts from tradingview
-        addButtons(hWnd, hInst, "Money Bag",              (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_COINS,     3); // total daily eur usd
+        addButtons(hWnd, hInst, "Bag",              (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_COINS,     3); // total daily eur usd
         addButtons(hWnd, hInst, "Orders",                 (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_ORDERS,   10); // open, messages, history
-        addButtons(hWnd, hInst, "Collection of Diamonds", (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_DIAMONDS,  4); // portfolio + watchlist
+        addButtons(hWnd, hInst, "Diamonds", (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_DIAMONDS,  4); // portfolio + watchlist
         
         addButtons(hWnd, hInst, "Ticker",             6 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_TICKER,    9);        
         addButtons(hWnd, hInst, "Levels",             6 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_LEVELS,    8);
         addButtons(hWnd, hInst, "Timesales",          6 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_TIMESALES, 7);
         addButtons(hWnd, hInst, "News",               6 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_NEWS,      6);
 
-        addButtons(hWnd, hInst, "Symbols Bookshelf", 12 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_SYMBOLS,   2);
+        addButtons(hWnd, hInst, "Symbols", 12 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_SYMBOLS,   2);
         addButtons(hWnd, hInst, "Settings",          12 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_M_SETTINGS,  5);
 
         api.setWindowHandle(hWnd);
@@ -100,6 +100,13 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         UpdateTrayIcon(hWnd);
         break;
 
+    case WM_API_ERROR: {
+        std::string* msg = (std::string*)lParam;
+        LogDebug(msg->c_str());
+        delete msg;
+        break;
+    }
+
     case WM_TIMER:
         if (wParam == TIMER_DROPDOWN) {
             KillTimer(hWnd, TIMER_DROPDOWN);
@@ -107,7 +114,9 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         }
         if (wParam == TIMER_WATCHDOG) {
             if (shouldBeConnected && !api.isConnected()) {
-                EnsureGatewayRunning(hWnd);
+                if (Settings_AutoGateway()) {
+                    EnsureGatewayRunning(hWnd);
+                }
                 api.connect();
                 UpdateTrayIcon(hWnd);
             } else if (!shouldBeConnected && api.isConnected()) {
@@ -133,6 +142,16 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
                 AppendMenu(hMenu, MF_STRING, ID_M_CONNECT, "Connect");
             }
             
+            AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+            AppendMenu(hMenu, MF_STRING, ID_M_COINS, "Bag");
+            AppendMenu(hMenu, MF_STRING, ID_M_DIAMONDS, "Diamonds");
+            AppendMenu(hMenu, MF_STRING, ID_M_ORDERS, "Orders");
+            AppendMenu(hMenu, MF_STRING, ID_M_TICKER, "Ticker");
+            AppendMenu(hMenu, MF_STRING, ID_M_LEVELS, "Levels");
+            AppendMenu(hMenu, MF_STRING, ID_M_TIMESALES, "Timesales");
+            AppendMenu(hMenu, MF_STRING, ID_M_NEWS, "News");
+            AppendMenu(hMenu, MF_STRING, ID_M_SYMBOLS, "Symbols");
+            AppendMenu(hMenu, MF_STRING, ID_M_SETTINGS, "Settings");
             AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
             AppendMenu(hMenu, MF_STRING, ID_M_EXIT, "Exit");
 
@@ -209,6 +228,42 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 		Shell_NotifyIcon(NIM_DELETE, &nid);
 		PostQuitMessage(0);
 		break;
+
+    case WM_ERASEBKGND: {
+        HDC hdc = (HDC)wParam;
+        RECT rc;
+        GetClientRect(hWnd, &rc);
+        FillRect(hdc, &rc, Settings_DarkMode() ? hDarkBrush : (HBRUSH)(COLOR_BTNFACE + 1));
+        return 1;
+    }
+
+    // Edit boxes, listboxes
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORLISTBOX: {
+        if (!Settings_DarkMode()) break;
+        HDC hdc = (HDC)wParam;
+        SetTextColor(hdc, DM_TEXT);
+        SetBkColor(hdc, DM_BG2);
+        return (LRESULT)hDarkBrush2;
+    }
+
+    // Static labels
+    case WM_CTLCOLORSTATIC: {
+        if (!Settings_DarkMode()) break;
+        HDC hdc = (HDC)wParam;
+        SetTextColor(hdc, DM_TEXT);
+        SetBkColor(hdc, DM_BG);
+        return (LRESULT)hDarkBrush;
+    }
+
+    // Buttons — BS_AUTOCHECKBOX and regular buttons
+    case WM_CTLCOLORBTN: {
+        if (!Settings_DarkMode()) break;
+        HDC hdc = (HDC)wParam;
+        SetTextColor(hdc, DM_TEXT);
+        SetBkColor(hdc, DM_BG);
+        return (LRESULT)hDarkBrush;
+    }
 		
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);

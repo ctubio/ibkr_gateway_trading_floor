@@ -272,33 +272,33 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 
         hCombo = CreateWindowA("COMBOBOX", NULL,
             WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
-            margin, margin, 170, 193,
+            margin, margin, 166, 193,
             hWnd, (HMENU)ID_BOOK_COMBO, hInst, NULL);
 
         CreateWindowA("BUTTON", "New Book",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_OWNERDRAW,
             margin + 171, margin, 80, 24,
             hWnd, (HMENU)ID_BOOK_NEW_LIST, hInst, NULL);
 
         hBtnDelList = CreateWindowA("BUTTON", "Delete Book",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_OWNERDRAW,
             margin + 259, margin, 90, 24,
             hWnd, (HMENU)ID_BOOK_DEL_LIST, hInst, NULL);
 
         hListBox = CreateWindowA("LISTBOX", NULL,
             WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL | LBS_NOTIFY,
-            margin, margin + 32, 316 - margin, 130,
+            margin, margin + 32, 313 - margin, 130,
             hWnd, (HMENU)ID_BOOK_LISTBOX, hInst, NULL);
 
         SetWindowSubclass(hListBox, ListBoxSubclassProc, 3, 0);
 
         hBtnUp = CreateWindowW(L"BUTTON", L"▲",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_OWNERDRAW,
             320, margin + 32, 36, 62,
             hWnd, (HMENU)ID_BOOK_ITEM_UP, hInst, NULL);
 
         hBtnDown = CreateWindowW(L"BUTTON", L"▼",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_OWNERDRAW,
             320, margin + 32 + 68, 36, 62,
             hWnd, (HMENU)ID_BOOK_ITEM_DOWN, hInst, NULL);
 
@@ -603,6 +603,88 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         api.setSymbolSearchWindow(NULL);
         Session_RemoveWindow(hWnd);
         break;
+        
+    case WM_DRAWITEM: {
+        DRAWITEMSTRUCT* dis = (DRAWITEMSTRUCT*)lParam;
+        if (dis->CtlType != ODT_BUTTON) break;
+
+        bool dark = Settings_DarkMode();
+        bool pressed = (dis->itemState & ODS_SELECTED);
+        bool disabled = (dis->itemState & ODS_DISABLED);
+
+        // Background
+        COLORREF bgColor = dark
+            ? (pressed ? RGB(60, 60, 60) : RGB(50, 50, 50))
+            : (pressed ? RGB(180, 180, 180) : RGB(225, 225, 225));
+
+        COLORREF textColor = disabled
+            ? RGB(120, 120, 120)
+            : (dark ? DM_TEXT : LM_TEXT);
+
+        COLORREF borderColor = dark ? DM_BORDER : RGB(170, 170, 170);
+
+        HBRUSH hBg = CreateSolidBrush(bgColor);
+        FillRect(dis->hDC, &dis->rcItem, hBg);
+        DeleteObject(hBg);
+
+        // Border
+        HPEN hPen = CreatePen(PS_SOLID, 1, borderColor);
+        HPEN hOld = (HPEN)SelectObject(dis->hDC, hPen);
+        HBRUSH hNull = (HBRUSH)SelectObject(dis->hDC, GetStockObject(NULL_BRUSH));
+        Rectangle(dis->hDC, dis->rcItem.left, dis->rcItem.top,
+                dis->rcItem.right, dis->rcItem.bottom);
+        SelectObject(dis->hDC, hOld);
+        SelectObject(dis->hDC, hNull);
+        DeleteObject(hPen);
+
+        // Text
+        char text[128] = {};
+        GetWindowTextA(dis->hwndItem, text, sizeof(text));
+        SetTextColor(dis->hDC, textColor);
+        SetBkMode(dis->hDC, TRANSPARENT);
+        DrawTextA(dis->hDC, text, -1, &dis->rcItem, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+        // Focus rect
+        if (dis->itemState & ODS_FOCUS)
+            DrawFocusRect(dis->hDC, &dis->rcItem);
+
+        return TRUE;
+    }
+    case WM_ERASEBKGND: {
+        HDC hdc = (HDC)wParam;
+        RECT rc;
+        GetClientRect(hWnd, &rc);
+        FillRect(hdc, &rc, Settings_DarkMode() ? hDarkBrush : (HBRUSH)(COLOR_BTNFACE + 1));
+        return 1;
+    }
+
+    // Edit boxes, listboxes
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORLISTBOX: {
+        if (!Settings_DarkMode()) break;
+        HDC hdc = (HDC)wParam;
+        SetTextColor(hdc, DM_TEXT);
+        SetBkColor(hdc, DM_BG2);
+        return (LRESULT)hDarkBrush2;
+    }
+
+    // Static labels
+    case WM_CTLCOLORSTATIC: {
+        if (!Settings_DarkMode()) break;
+        HDC hdc = (HDC)wParam;
+        SetTextColor(hdc, DM_TEXT);
+        SetBkColor(hdc, DM_BG);
+        return (LRESULT)hDarkBrush;
+    }
+
+    // Buttons — BS_AUTOCHECKBOX and regular buttons
+    case WM_CTLCOLORBTN: {
+        if (!Settings_DarkMode()) break;
+        HDC hdc = (HDC)wParam;
+        SetTextColor(hdc, DM_TEXT);
+        SetBkColor(hdc, DM_BG);
+        return (LRESULT)hDarkBrush;
+    }
 
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);

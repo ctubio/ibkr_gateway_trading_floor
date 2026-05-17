@@ -1,6 +1,6 @@
-#include "api.h"
 #include "shared.h"
 #include "settings.h"
+#include "api.h"
 #include "book.h"
 #include "diamonds.h"
 #include "coins.h"
@@ -11,20 +11,14 @@
 #include "ticker.h"
 #include "dashboard.h"
 
-// Global Hotkey Registrations
-// Frameless, Translucent, and Non-Rectangular UI
-// Window "Click-Through" Overlays
-// Modern Window Corner Rounding
-// Immersive Dark Mode
-// Taskbar Extensions
-// Rich Canvas Visualizations & Direct Manipulation
-
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
     HANDLE hMutex = mutex_on();
 	if (!hMutex) {
         MessageBoxA(NULL, "Application already running!", "Exception", MB_OK);
         return 0;
     } 
+
+    InitDarkBrushes();
     
     registerWindowClass(hInst, WndProcBook,      BOOK_CLASS_NAME,       2);
     registerWindowClass(hInst, WndProcCoins,     COINS_CLASS_NAME,      3);

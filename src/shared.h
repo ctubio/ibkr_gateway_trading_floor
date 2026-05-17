@@ -1,21 +1,72 @@
 #pragma once
 
+#include <thread>
+#include <mutex>
+#include <iostream>
+#include <chrono>
+
+#include "EWrapper.h"
+#include "EClientSocket.h"
+#include "EReaderOSSignal.h"
+#include "EReader.h"
+
 #include <windows.h>
 #include <shellapi.h>
 #include <shobjidl.h>
-
-#include <iostream>
-#include <chrono>
 
 #include <dwmapi.h>
 #include <initguid.h>
 #include <propkey.h>
 #include <propvarutil.h>
+#include <mmsystem.h>
 
 constexpr const char* APP_REG_ROOT = "Software\\ibkr-gateway-trading-floor";
 
 std::unordered_map<std::string, HWND> g_AppWindows;
 
+// Dark mode colors
+#define DM_BG        RGB(32,  32,  32)
+#define DM_BG2       RGB(45,  45,  45)
+#define DM_TEXT      RGB(220, 220, 220)
+#define DM_BORDER    RGB(70,  70,  70)
+
+// Light mode colors  
+#define LM_BG        GetSysColor(COLOR_BTNFACE)
+#define LM_TEXT      GetSysColor(COLOR_WINDOWTEXT)
+
+HBRUSH hDarkBrush = NULL;
+HBRUSH hDarkBrush2 = NULL;
+
+static HWND hDebugLogWnd = NULL;
+static HWND hDebugEdit = NULL;
+static std::vector<std::string> debugBuffer; // stores messages when window is closed
+
+void LogDebug(const std::string& msg) {
+    time_t now = time(0);
+    char tstr[26] = {};
+    ctime_s(tstr, sizeof(tstr), &now);
+    std::string timestamp = tstr;
+    if (!timestamp.empty()) timestamp.pop_back(); // remove newline
+
+    std::string fullMsg = "[" + timestamp + "] " + msg + "\r\n";
+    debugBuffer.push_back(fullMsg);
+
+    if (hDebugEdit && IsWindow(hDebugEdit)) {
+        // Append to edit control
+        int len = GetWindowTextLength(hDebugEdit);
+        SendMessage(hDebugEdit, EM_SETSEL, len, len);
+        SendMessageA(hDebugEdit, EM_REPLACESEL, FALSE, (LPARAM)fullMsg.c_str());
+        // Auto-scroll to bottom
+        SendMessage(hDebugEdit, EM_SCROLLCARET, 0, 0);
+    }
+}
+
+void InitDarkBrushes() {
+    if (hDarkBrush)  DeleteObject(hDarkBrush);
+    if (hDarkBrush2) DeleteObject(hDarkBrush2);
+    hDarkBrush  = CreateSolidBrush(DM_BG);
+    hDarkBrush2 = CreateSolidBrush(DM_BG2);
+}
 
 void SetWindowTaskbarId(HWND hWnd, const wchar_t* id) {
     IPropertyStore* pps;
@@ -205,6 +256,88 @@ void ApplyDarkMode(HWND hWnd) {
     DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark, sizeof(dark));
 }
 
+#include <atomic>
+#include <string>
+#include <queue>
+#include <condition_variable>
+
+void PlaySound_Async(int resourceId) {
+    if (!Settings_Load("PlaySounds", 0)) return;
+
+    // We use a static worker thread and a queue to ensure sounds play sequentially
+    struct SoundQueue {
+        std::queue<int> queue;
+        std::mutex mutex;
+        std::condition_variable cv;
+        std::atomic<bool> running{true};
+        std::thread worker;
+
+        SoundQueue() {
+            worker = std::thread([this]() {
+                while (running) {
+                    int resId = 0;
+                    {
+                        std::unique_lock<std::mutex> lock(mutex);
+                        cv.wait(lock, [this] { return !queue.empty() || !running; });
+                        if (!running) break;
+                        resId = queue.front();
+                        queue.pop();
+                    }
+
+                    // Actual playback logic
+                    HRSRC hRes = FindResource(NULL, MAKEINTRESOURCE(resId), RT_RCDATA);
+                    if (hRes) {
+                        HGLOBAL hMem = LoadResource(NULL, hRes);
+                        if (hMem) {
+                            void* pData = LockResource(hMem);
+                            DWORD size = SizeofResource(NULL, hRes);
+                            if (pData && size) {
+                                static std::atomic<int> soundSequence(0);
+                                int currentSeq = ++soundSequence;
+
+                                char tempPath[MAX_PATH];
+                                GetTempPathA(MAX_PATH, tempPath);
+                                std::string mp3File = std::string(tempPath) + "ib_snd_" + std::to_string(currentSeq) + ".mp3";
+                                std::string alias = "mci_snd_" + std::to_string(currentSeq);
+
+                                FILE* f = fopen(mp3File.c_str(), "wb");
+                                if (f) {
+                                    fwrite(pData, 1, size, f);
+                                    fclose(f);
+
+                                    std::string openCmd = "open \"" + mp3File + "\" type mpegvideo alias " + alias;
+                                    std::string playCmd = "play " + alias + " from 0";
+                                    mciSendStringA(openCmd.c_str(), NULL, 0, NULL);
+                                    mciSendStringA(playCmd.c_str(), NULL, 0, NULL);
+
+                                    // Wait for sound to finish (approximate) or use a fixed delay
+                                    // Since we are in a dedicated worker thread, we can afford to sleep
+                                    std::this_thread::sleep_for(std::chrono::seconds(3));
+                                    
+                                    std::string closeCmd = "close " + alias;
+                                    mciSendStringA(closeCmd.c_str(), NULL, 0, NULL);
+                                    DeleteFileA(mp3File.c_str());
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        ~SoundQueue() {
+            running = false;
+            cv.notify_all();
+            if (worker.joinable()) worker.join();
+        }
+    };
+
+    static SoundQueue sq;
+    {
+        std::lock_guard<std::mutex> lock(sq.mutex);
+        sq.queue.push(resourceId);
+    }
+    sq.cv.notify_one();
+}
 
 void Session_AddWindow(HWND hWnd) {
     ApplyDarkMode(hWnd);
