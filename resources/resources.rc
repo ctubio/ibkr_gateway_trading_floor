@@ -1,4 +1,12 @@
 // https://icon-icons.com/search?q=tnt
 
-1 ICON "resources/tnt.ico"
-2 ICON "resources/bookshelf.ico"
+ 1 ICON "resources/tnt.ico"
+ 2 ICON "resources/bookshelf.ico"
+ 3 ICON "resources/coins.ico"
+ 4 ICON "resources/diamond.ico"
+ 5 ICON "resources/settings.ico"
+ 6 ICON "resources/news.ico"
+ 7 ICON "resources/timesales.ico"
+ 8 ICON "resources/levels.ico"
+ 9 ICON "resources/msgs.ico"
+10 ICON "resources/orders.ico"

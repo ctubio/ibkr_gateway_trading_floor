@@ -104,6 +104,27 @@ HICON CreateGrayIcon(HICON hOriginal) {
     return hGray;
 }
 
+HICON hIconConnected;
+HICON hIconOffline;
+
+void registerWindowClass(HINSTANCE hInst, WNDPROC WndProc, const char* className, int iconId) {
+    if (iconId == 1) {
+        hIconConnected = (HICON)LoadImage(hInst, MAKEINTRESOURCE(iconId), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR);
+        hIconOffline   = CreateGrayIcon(hIconConnected);
+    }
+    WNDCLASS wc = { 0 };
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInst;
+    wc.lpszClassName = className;
+    if (iconId == 1) {
+        wc.hIcon = hIconOffline;
+    } else {
+        wc.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(iconId));
+    }
+    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+    RegisterClass(&wc);
+}
+
 #include <tlhelp32.h>
 
 bool IsProcessRunning(const char* processName) {

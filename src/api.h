@@ -16,6 +16,15 @@
 #define TIMER_WATCHDOG 1
 
 #define ID_M_SYMBOLS    1001
+#define ID_M_COINS      1002
+#define ID_M_DIAMONDS   1003
+#define ID_M_SETTINGS   1004
+#define ID_M_NEWS       1005
+#define ID_M_TICKER     1006
+#define ID_M_TIMESALES  1007
+#define ID_M_LEVELS     1008
+#define ID_M_ORDERS     1009
+
 #define ID_M_CONNECT    3001
 #define ID_M_DISCONNECT 3002
 #define ID_M_EXIT       3003
@@ -140,16 +149,15 @@ public:
         symbolResults.clear();
         for (const auto& cd : contractDescriptions) {
             if (cd.contract.secType == "STK" || cd.contract.secType == "ETF") {
-                std::string label = cd.contract.symbol;
+                std::string entry = std::to_string(cd.contract.conId) + "." + cd.contract.symbol;
                 if (!cd.contract.primaryExchange.empty())
-                    label += "." + cd.contract.primaryExchange;
-                symbolResults.push_back(label);
+                    entry += "." + cd.contract.primaryExchange;
+                symbolResults.push_back(entry);
             }
         }
         if (hSymbolSearchWnd)
             PostMessage(hSymbolSearchWnd, WM_SYMBOL_RESULTS, 0, 0);
     }
-
     #define managedAccounts managedAccounts_ignored
     #define error error_ignored
     #define symbolSamples symbolSamples_ignored

@@ -1,23 +1,21 @@
 #pragma once
 
 HWND hDBWnd = NULL;
-static const char* DB_CLASS_NAME = "TNTDashboardClass";
+static const char* DASHBOARD_CLASS_NAME = "TNTDashboardClass";
 
 #define WM_TRAYICON (WM_USER + 1)
 NOTIFYICONDATA nid = { 0 };
 
-HICON hIconConnected;
-HICON hIconOffline;
-
 void UpdateTrayIcon(HWND hWnd) {
     std::string tooltipText;
-    std::string windowTitle = "IBKR Tunnel Dashboard: Offline";
+    std::string windowTitle = "IBKR Gateway: ";
     HICON hIcon;
 
     if (api.isConnected()) {
         std::string accNum = api.getAccountNumber();
         if (accNum.empty()) {
             tooltipText = "Connecting...";
+            windowTitle += tooltipText;
             hIcon = hIconOffline;
         } else {
             tooltipText = "Account: " + accNum;
@@ -26,6 +24,7 @@ void UpdateTrayIcon(HWND hWnd) {
         }
     } else {
         tooltipText = "Offline";
+        windowTitle += tooltipText;
         hIcon = hIconOffline;
     }
 
@@ -42,20 +41,16 @@ void UpdateTrayIcon(HWND hWnd) {
     SetWindowTextA(hWnd, windowTitle.c_str());
 }
 
-LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-    switch (message) {
-    case WM_CREATE:	{
-		LPCREATESTRUCT pcs = (LPCREATESTRUCT)lParam;
-        HINSTANCE hInst = pcs->hInstance;
+void addButtons(HWND hWnd, HINSTANCE hInst, LPCSTR buttonText, int x, int y, HMENU menuId, int iconId) {
 		// Create the button
         HWND hBtn = CreateWindow(
-            "BUTTON", "Click Me",
+            "BUTTON", buttonText,
             WS_VISIBLE | WS_CHILD | BS_ICON,
-            7, 7, 26, 26,
-            hWnd, (HMENU)ID_M_SYMBOLS, hInst, NULL
+            x, y, 26, 26,
+            hWnd, menuId, hInst, NULL
         );
         SendMessage(hBtn, BM_SETIMAGE, (WPARAM)IMAGE_ICON,
-            (LPARAM)LoadImage(hInst, MAKEINTRESOURCE(2), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR));
+            (LPARAM)LoadImage(hInst, MAKEINTRESOURCE(iconId), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR));
 
         // Add tooltip
         HWND hTip = CreateWindowA(TOOLTIPS_CLASS, NULL,
@@ -68,8 +63,30 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         ti.uFlags   = TTF_IDISHWND | TTF_SUBCLASS;
         ti.hwnd     = hWnd;
         ti.uId      = (UINT_PTR)hBtn;
-        ti.lpszText = (LPSTR)"Symbols Bookshelf";
+        ti.lpszText = (LPSTR)buttonText;
         SendMessage(hTip, TTM_ADDTOOLA, 0, (LPARAM)&ti);
+}
+
+LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    switch (message) {
+    case WM_CREATE:	{
+		LPCREATESTRUCT pcs = (LPCREATESTRUCT)lParam;
+        HINSTANCE hInst = pcs->hInstance;
+
+        int steps = 1;
+        int stepz = 0;
+        //charts from tradingview
+        addButtons(hWnd, hInst, "Money Bag",              (7 * steps++) + (26 * stepz++), 7, (HMENU)ID_M_COINS,     3); // total daily eur usd
+        addButtons(hWnd, hInst, "Orders",                 (7 * steps++) + (26 * stepz++), 7, (HMENU)ID_M_ORDERS,   10); // open, messages, history
+        addButtons(hWnd, hInst, "Collection of Diamonds", (7 * steps++) + (26 * stepz++), 7, (HMENU)ID_M_DIAMONDS,  4); // portfolio + watchlist
+        
+        addButtons(hWnd, hInst, "Ticker",             6 + (7 * steps++) + (26 * stepz++), 7, (HMENU)ID_M_TICKER,    9);        
+        addButtons(hWnd, hInst, "Levels",                 (7 * steps++) + (26 * stepz++), 7, (HMENU)ID_M_LEVELS,    8);
+        addButtons(hWnd, hInst, "Timesales",              (7 * steps++) + (26 * stepz++), 7, (HMENU)ID_M_TIMESALES, 7);
+        addButtons(hWnd, hInst, "News",                   (7 * steps++) + (26 * stepz++), 7, (HMENU)ID_M_NEWS,      6);
+
+        addButtons(hWnd, hInst, "Symbols Bookshelf",  6 + (7 * steps++) + (26 * stepz++), 7, (HMENU)ID_M_SYMBOLS,   2);
+        addButtons(hWnd, hInst, "Settings",               (7 * steps++) + (26 * stepz++), 7, (HMENU)ID_M_SETTINGS,  5);
 
         api.setWindowHandle(hWnd);
         
@@ -149,6 +166,30 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
             case ID_M_SYMBOLS:
                 startBook();
                 break;
+            case ID_M_COINS:
+                startCoins();
+                break;
+            case ID_M_DIAMONDS:
+                startDiamonds();
+                break;
+            case ID_M_NEWS:
+                startNews();
+                break;
+            case ID_M_TIMESALES:
+                startTimesales();
+                break;
+            case ID_M_LEVELS:
+                startLevels();
+                break;
+            case ID_M_TICKER:
+                startTicker();
+                break;
+            case ID_M_SETTINGS:
+                startSettings();
+                break;
+            case ID_M_ORDERS:
+                startOrders();
+                break;
         }
         break;
 		
@@ -157,11 +198,11 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         return 0;
 
 	case WM_MOVE:
-		SaveWinPosition(hWnd, DB_CLASS_NAME);
+		SaveWinPosition(hWnd, DASHBOARD_CLASS_NAME);
         break;
 		
 	case WM_DESTROY:
-		SaveWinPosition(hWnd, DB_CLASS_NAME);
+		SaveWinPosition(hWnd, DASHBOARD_CLASS_NAME);
 		Shell_NotifyIcon(NIM_DELETE, &nid);
 		PostQuitMessage(0);
 		break;
@@ -175,9 +216,9 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 void startDashboard(HINSTANCE hInst) {
     // 2. Create the Dashboard Window
 	int x = CW_USEDEFAULT, y = CW_USEDEFAULT, w = 400, h = 70;
-	LoadWinPosition(DB_CLASS_NAME, x, y, w, h);
+	LoadWinPosition(DASHBOARD_CLASS_NAME, x, y, w, h);
 	
-    hDBWnd = CreateWindow(DB_CLASS_NAME, "IBKR Tunnel Dashboard: Offline", 
+    hDBWnd = CreateWindow(DASHBOARD_CLASS_NAME, "IBKR Gateway: Offline", 
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, x, y, w, h,
         NULL, NULL, hInst, NULL);
 	ShowWindow(hDBWnd, SW_SHOW);
@@ -186,22 +227,9 @@ void startDashboard(HINSTANCE hInst) {
     SetWindowTaskbarId(hDBWnd, L"IBKRTunnel.Dashboard");
 }
 
-void registerDashboard(HINSTANCE hInst) {
-    hIconConnected = (HICON)LoadImage(hInst, MAKEINTRESOURCE(1), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR);
-    hIconOffline   = CreateGrayIcon(hIconConnected);
-
-    // 1. Register Window Class
-    WNDCLASS wc = { 0 };
-    wc.lpfnWndProc = WndProcDashboard;
-    wc.hInstance = hInst;
-    wc.lpszClassName = DB_CLASS_NAME;
-    wc.hIcon = hIconOffline;
-    RegisterClass(&wc);
-
-	startDashboard(hInst);
-}
-
 void registerSystemIcon(HINSTANCE hInst) {
+	startDashboard(hInst);
+
     // 3. Initialize Tray Icon
     nid.cbSize = sizeof(NOTIFYICONDATA);
     nid.hWnd = hDBWnd;
@@ -209,7 +237,7 @@ void registerSystemIcon(HINSTANCE hInst) {
     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     nid.uCallbackMessage = WM_TRAYICON;
     nid.hIcon = hIconOffline;
-    lstrcpy(nid.szTip, "IBKR Tunnel");
+    lstrcpy(nid.szTip, "Offline");
     Shell_NotifyIcon(NIM_ADD, &nid);
 }
 
@@ -221,7 +249,7 @@ HANDLE mutex_on() {
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         // If it exists, another instance is running. 
         // We find the existing window and bring it to the front before exiting.
-        HWND existingWnd = FindWindow(DB_CLASS_NAME, NULL);
+        HWND existingWnd = FindWindow(DASHBOARD_CLASS_NAME, NULL);
         if (existingWnd) {
             ShowWindow(existingWnd, SW_SHOW);
             SetForegroundWindow(existingWnd);
