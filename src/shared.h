@@ -28,10 +28,10 @@ void SetWindowTaskbarId(HWND hWnd, const wchar_t* id) {
     }
 }
 
-void SaveWinPosition(HWND hwnd, const char* subKeyName) {
+void SaveWinPosition(HWND hWnd) {
     WINDOWPLACEMENT wp;
     wp.length = sizeof(WINDOWPLACEMENT);
-    GetWindowPlacement(hwnd, &wp);
+    GetWindowPlacement(hWnd, &wp);
 
     // wp.rcNormalPosition is the coordinates when NOT minimized/maximized
     DWORD x = (DWORD)wp.rcNormalPosition.left;
@@ -43,8 +43,10 @@ void SaveWinPosition(HWND hwnd, const char* subKeyName) {
     // instead of the -32000 values.
     
     HKEY hKey;
+    char className[256] = {};
+    GetClassNameA(hWnd, className, sizeof(className));
     char fullPath[256];
-    wsprintf(fullPath, "%s\\WindowSettings\\%s", APP_REG_ROOT, subKeyName);
+    wsprintf(fullPath, "%s\\WindowSettings\\%s", APP_REG_ROOT, className);
 
     if (RegCreateKeyEx(HKEY_CURRENT_USER, fullPath, 0, NULL, 
         REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) 
@@ -244,6 +246,8 @@ void Session_RemoveWindow(HWND hWnd) {
             (const BYTE*)multiStr.data(), (DWORD)multiStr.size());
         RegCloseKey(hKey);
     }
+
+    g_AppWindows[className] = NULL;
 }
 
 void Session_RestoreWindows(

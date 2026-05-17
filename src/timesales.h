@@ -17,13 +17,12 @@ LRESULT CALLBACK WndProcTimesales(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         break;
 
     case WM_MOVE:
-        SaveWinPosition(hWnd, TIMESALES_CLASS_NAME);
+        SaveWinPosition(hWnd);
         break;
 
     case WM_DESTROY:
-        SaveWinPosition(hWnd, TIMESALES_CLASS_NAME);
+        SaveWinPosition(hWnd);
         Session_RemoveWindow(hWnd);
-        g_AppWindows[TIMESALES_CLASS_NAME] = NULL;
         break;
 
     default:

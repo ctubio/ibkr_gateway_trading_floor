@@ -17,13 +17,12 @@ LRESULT CALLBACK WndProcLevels(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
         break;
 
     case WM_MOVE:
-        SaveWinPosition(hWnd, LEVELS_CLASS_NAME);
+        SaveWinPosition(hWnd);
         break;
 
     case WM_DESTROY:
-        SaveWinPosition(hWnd, LEVELS_CLASS_NAME);
+        SaveWinPosition(hWnd);
         Session_RemoveWindow(hWnd);
-        g_AppWindows[LEVELS_CLASS_NAME] = NULL;
         break;
 
     default:

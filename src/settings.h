@@ -2,7 +2,7 @@
 
 static const char* SETTINGS_CLASS_NAME = "TNTSettingsWindowClass";
 
-void startSettings() { startGenericWindow(SETTINGS_CLASS_NAME, "Settings", L"IBKRGatewayClient.Settings", 300, 80); }
+void startSettings() { startGenericWindow(SETTINGS_CLASS_NAME, "Settings", L"IBKRGatewayClient.Settings", 300, 280); }
 
 #define ID_SETTINGS_KILL_GATEWAY 4001
 
@@ -43,13 +43,12 @@ LRESULT CALLBACK WndProcSettings(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
         break;
 
     case WM_MOVE:
-        SaveWinPosition(hWnd, SETTINGS_CLASS_NAME);
+        SaveWinPosition(hWnd);
         break;
 
     case WM_DESTROY:
-        SaveWinPosition(hWnd, SETTINGS_CLASS_NAME);
+        SaveWinPosition(hWnd);
         Session_RemoveWindow(hWnd);
-        g_AppWindows[SETTINGS_CLASS_NAME] = NULL;
         break;
 
     default:

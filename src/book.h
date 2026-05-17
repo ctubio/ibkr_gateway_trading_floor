@@ -2,11 +2,7 @@
 
 static const char* BOOK_CLASS_NAME = "TNTBookWindowClass";
 
-void startBook() {
-    startGenericWindow(BOOK_CLASS_NAME, "Book", L"IBKRGatewayClient.Book", 373, 240);
-    
-    api.setSymbolSearchWindow(g_AppWindows[BOOK_CLASS_NAME]);
-}
+void startBook() { startGenericWindow(BOOK_CLASS_NAME, "Book", L"IBKRGatewayClient.Book", 373, 240); }
 
 static HWND hAutoComplete = NULL;
 
@@ -599,14 +595,13 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         break;
 
     case WM_MOVE:
-        SaveWinPosition(hWnd, BOOK_CLASS_NAME);
+        SaveWinPosition(hWnd);
         break;
 
     case WM_DESTROY:
-        SaveWinPosition(hWnd, BOOK_CLASS_NAME);
-        Session_RemoveWindow(hWnd);
+        SaveWinPosition(hWnd);
         api.setSymbolSearchWindow(NULL);
-        g_AppWindows[BOOK_CLASS_NAME] = NULL;
+        Session_RemoveWindow(hWnd);
         break;
 
     default:

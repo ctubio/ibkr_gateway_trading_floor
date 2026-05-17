@@ -201,11 +201,11 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         return 0;
 
 	case WM_MOVE:
-		SaveWinPosition(hWnd, DASHBOARD_CLASS_NAME);
+		SaveWinPosition(hWnd);
         break;
 		
 	case WM_DESTROY:
-		SaveWinPosition(hWnd, DASHBOARD_CLASS_NAME);
+		SaveWinPosition(hWnd);
 		Shell_NotifyIcon(NIM_DELETE, &nid);
 		PostQuitMessage(0);
 		break;
