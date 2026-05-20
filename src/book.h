@@ -326,8 +326,15 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             if (!first.empty()) Book_LoadList(first.c_str(), hListBox);
 
             Book_UpdateControlStates();
+
+            
+            api.setSymbolSearchWindow(hWnd);
             break;
         }
+
+        case WM_DESTROY:
+            api.setSymbolSearchWindow(NULL);
+            break;
 
         case WM_TIMER:
             if (wParam == TIMER_DROPDOWN) {

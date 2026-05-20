@@ -151,18 +151,6 @@ void registerWindowClass(HINSTANCE hInst, WNDPROC WndProc, const char* className
     RegisterClass(&wc);
 }
 
-void UpdateSymbolSearchSubscriber(const char* className) {
-    if (!className) {
-        api.setSymbolSearchWindow(NULL);
-        return;
-    }
-    if (strcmp(className, NEWS_CLASS_NAME) == 0)
-        api.setSymbolSearchWindow(g_AppWindows[NEWS_CLASS_NAME]);
-    else if (strcmp(className, BOOK_CLASS_NAME) == 0)
-        api.setSymbolSearchWindow(g_AppWindows[BOOK_CLASS_NAME]);
-    else
-        api.setSymbolSearchWindow(NULL);
-}
 // ─── Window Session ───────────────────────────────────────────────────────────
 
 LRESULT HandleDarkModeMessages(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -235,7 +223,6 @@ LRESULT HandleCommonMessages(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         case WM_CREATE:
             if (strcmp(className, DASHBOARD_CLASS_NAME) != 0) 
                 Session_AddWindow(hWnd);
-            UpdateSymbolSearchSubscriber(className);
             return 0;
         case WM_CLOSE:
             if (strcmp(className, DASHBOARD_CLASS_NAME) == 0) 
@@ -243,12 +230,12 @@ LRESULT HandleCommonMessages(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             else
                 DestroyWindow(hWnd);
             return 0;
+        case WM_SIZE:
         case WM_MOVE:
             SaveWinPosition(hWnd);
             return 0;
         case WM_DESTROY:
             SaveWinPosition(hWnd);
-            UpdateSymbolSearchSubscriber(className);
             if (strcmp(className, DASHBOARD_CLASS_NAME) == 0) {
                 api.removeApiUpdateWindow(hWnd);
                 api.clearApiErrorWindow(hWnd);
@@ -257,9 +244,6 @@ LRESULT HandleCommonMessages(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             } else {
                 Session_RemoveWindow(hWnd);
             }
-            return 0;
-        case WM_SETFOCUS:
-            UpdateSymbolSearchSubscriber(className);
             return 0;
         default: {
             LRESULT res = HandleDarkModeMessages(hWnd, message, wParam, lParam);
