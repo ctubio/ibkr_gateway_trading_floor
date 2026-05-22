@@ -1,10 +1,10 @@
 # IBKR Gateway: Trading Floor
 
-A lightweight Windows tray application for real-time trading and market data from Interactive Brokers Gateway. **TNT** provides instant access to account information, positions, orders, market data, and trading tools—all from your system tray.
+A lightweight Windows tray application for real-time trading and market data from Interactive Brokers Gateway. Provides instant access to account information, positions, orders, market data, and trading tools—all from your system tray.
 
 ## Overview
 
-**TNT** (Trading from Now on?) is a modern desktop trading companion built on the Interactive Brokers TWS C++ API. It connects to IBKR Gateway (not Trader Workstation) and provides multiple synchronized windows for monitoring and managing your account in real-time.
+A modern desktop trading companion built on the Interactive Brokers TWS C++ API. It connects to IBKR Gateway (not Trader Workstation) and provides multiple synchronized windows for monitoring and managing your account in real-time.
 
 ### Key Highlights
 
