@@ -124,7 +124,7 @@ LRESULT CALLBACK WndProcCoins(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPa
     }
 
     case WM_API_UPDATE:
-        if (api.isConnected()) {
+        if (api.isMarketDataConnected() && api.isTradingConnected()) {
             LogDebug("Coins window received API update, refreshing account summary and PnL");
             api.setCoinWindow(hWnd);
         } else {

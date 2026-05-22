@@ -155,7 +155,7 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
     }
 
     case WM_DESTROY:
-        api.setDiamondsWindow(NULL);
+        api.unsetDiamondsWindow();
         break;
     }
 

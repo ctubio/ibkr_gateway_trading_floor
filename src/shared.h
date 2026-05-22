@@ -58,7 +58,11 @@ void startGenericWindow(const char* className, const char* title, const wchar_t*
         HWND hWndParent = NULL;
         DWORD dwExStyle = WS_EX_APPWINDOW;
         DWORD dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE;
-        if (strcmp(className, NEWS_CLASS_NAME) == 0 || strcmp(className, ORDERS_CLASS_NAME) == 0) {
+        if (strcmp(className, NEWS_CLASS_NAME)      == 0
+         || strcmp(className, ORDERS_CLASS_NAME)    == 0
+         || strcmp(className, DIAMONDS_CLASS_NAME)  == 0
+         || strcmp(className, TIMESALES_CLASS_NAME) == 0
+        ) {
             dwStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
         }
         if (strcmp(className, DEBUGLOG_CLASS_NAME) == 0) {
@@ -147,7 +151,7 @@ void registerWindowClass(HINSTANCE hInst, WNDPROC WndProc, const char* className
     } else {
         wc.hInstance = hInst;
     }
-    wc.hIcon = offlineIcon;
+    wc.hIcon = onlineIcon;
     RegisterClass(&wc);
 }
 
@@ -220,10 +224,14 @@ LRESULT HandleCommonMessages(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
     GetClassNameA(hWnd, className, sizeof(className));
 
     switch (message) {
-        case WM_CREATE:
+        case WM_CREATE: {
+            HICON hIcon = api.isConnected() ? onlineIcons[className] : offlineIcons[className];
+            SendMessage(hWnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+            SendMessage(hWnd, WM_SETICON, ICON_BIG,   (LPARAM)hIcon);
             if (strcmp(className, DASHBOARD_CLASS_NAME) != 0) 
                 Session_AddWindow(hWnd);
             return 0;
+        }
         case WM_CLOSE:
             if (strcmp(className, DASHBOARD_CLASS_NAME) == 0) 
                 ShowWindow(hWnd, SW_HIDE);

@@ -6,20 +6,21 @@ void startNews() { startGenericWindow(NEWS_CLASS_NAME, "News", L"IBKRGatewayClie
 #define ID_NEWS_SYM_COMBO    6002
 #define ID_NEWS_RESULTS_LIST 6003
 
-static HWND hNewsListCombo = NULL;   // selects which book list
-static HWND hNewsSymCombo  = NULL;   // selects symbol within that list
-static HWND hNewsResults   = NULL;   // displays news items
-
-// Full entries (conId.symbol.exchange) parallel to hNewsSymCombo indices
+static HWND hNewsListCombo = NULL;
+static HWND hNewsSymCombo  = NULL;
+static HWND hNewsResults   = NULL;
 static std::vector<std::string> newsSymEntries;
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+static const int NEWS_COMBO_H   = 24;
+static const int NEWS_COMBO_GAP = 8;
+static const int NEWS_SELECTOR_H = 8 + NEWS_COMBO_H + 8;
 
-// Returns the currently selected list name from hNewsListCombo, or "".
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 static std::string News_GetSelectedList() {
-    int sel = SendMessage(hNewsListCombo, CB_GETCURSEL, 0, 0);
+    int sel = (int)SendMessage(hNewsListCombo, CB_GETCURSEL, 0, 0);
     if (sel == CB_ERR) return "";
-    int len = SendMessage(hNewsListCombo, CB_GETLBTEXTLEN, sel, 0);
+    int len = (int)SendMessage(hNewsListCombo, CB_GETLBTEXTLEN, sel, 0);
     if (len <= 0) return "";
     std::string name(len + 1, '\0');
     SendMessageA(hNewsListCombo, CB_GETLBTEXT, sel, (LPARAM)name.data());
@@ -27,57 +28,57 @@ static std::string News_GetSelectedList() {
     return name;
 }
 
-// Populates hNewsListCombo from the registry and restores savedList selection.
-// Returns true if the list combo contains at least one entry.
 static bool News_LoadListCombo(const std::string& savedList = "") {
     SendMessage(hNewsListCombo, CB_RESETCONTENT, 0, 0);
-
     Book_LoadAllLists(hNewsListCombo);
-
-    int count = (int)SendMessage(hNewsListCombo, CB_GETCOUNT, 0, 0);
-    if (count == 0) return false;
-
-    // Try to restore saved list, fall back to first entry
+    if ((int)SendMessage(hNewsListCombo, CB_GETCOUNT, 0, 0) == 0) return false;
     int idx = CB_ERR;
     if (!savedList.empty())
         idx = (int)SendMessageA(hNewsListCombo, CB_FINDSTRINGEXACT, -1, (LPARAM)savedList.c_str());
-    if (idx == CB_ERR) idx = 0;
-
-    SendMessage(hNewsListCombo, CB_SETCURSEL, idx, 0);
+    SendMessage(hNewsListCombo, CB_SETCURSEL, idx == CB_ERR ? 0 : idx, 0);
     return true;
 }
 
-// Populates hNewsSymCombo from the selected list. Restores savedEntry if provided.
-// Returns true if at least one symbol was loaded.
 static bool News_LoadSymbolCombo(const std::string& savedEntry = "") {
     SendMessage(hNewsSymCombo, CB_RESETCONTENT, 0, 0);
     newsSymEntries.clear();
-
     std::string listName = News_GetSelectedList();
     if (listName.empty()) return false;
-
-    auto entries = Book_ReadListEntries(listName.c_str());
-    for (const auto& full : entries) {
+    for (const auto& full : Book_ReadListEntries(listName.c_str())) {
         newsSymEntries.push_back(full);
-        SendMessageA(hNewsSymCombo, CB_ADDSTRING, 0,
-                     (LPARAM)Book_DisplayLabel(full).c_str());
+        SendMessageA(hNewsSymCombo, CB_ADDSTRING, 0, (LPARAM)Book_DisplayLabel(full).c_str());
     }
-
     if (newsSymEntries.empty()) return false;
-
-    // Restore saved selection or default to first
     int idx = CB_ERR;
-    if (!savedEntry.empty()) {
-        for (int i = 0; i < (int)newsSymEntries.size(); ++i) {
-            if (newsSymEntries[i] == savedEntry) { idx = i; break; }
-        }
-    }
-    if (idx == CB_ERR) idx = 0;
-    SendMessage(hNewsSymCombo, CB_SETCURSEL, idx, 0);
+    for (int i = 0; i < (int)newsSymEntries.size(); ++i)
+        if (newsSymEntries[i] == savedEntry) { idx = i; break; }
+    SendMessage(hNewsSymCombo, CB_SETCURSEL, idx == CB_ERR ? 0 : idx, 0);
     return true;
 }
 
-// ─── News request helper ──────────────────────────────────────────────────────
+// ── Layout ────────────────────────────────────────────────────────────────────
+
+static void News_Layout(HWND hWnd) {
+    if (!hNewsResults) return;
+    RECT rc; GetClientRect(hWnd, &rc);
+    const int m = 8;
+
+    bool combosVisible = hNewsListCombo && IsWindowVisible(hNewsListCombo);
+
+    if (combosVisible) {
+        int availW = rc.right - m * 2 - NEWS_COMBO_GAP;
+        int eachW  = availW / 2;
+        SetWindowPos(hNewsListCombo, NULL, m,                           m, eachW, 200,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+        SetWindowPos(hNewsSymCombo,  NULL, m + eachW + NEWS_COMBO_GAP, m, eachW, 200,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+        MoveWindow(hNewsResults, 0, NEWS_SELECTOR_H, rc.right, rc.bottom - NEWS_SELECTOR_H, TRUE);
+    } else {
+        MoveWindow(hNewsResults, 0, 0, rc.right, rc.bottom, TRUE);
+    }
+}
+
+// ── News request ──────────────────────────────────────────────────────────────
 
 void News_RequestForSymbol(const std::string& fullEntry) {
     auto firstDot = fullEntry.find('.');
@@ -88,62 +89,61 @@ void News_RequestForSymbol(const std::string& fullEntry) {
     std::string symbol   = (secondDot != std::string::npos) ? rest.substr(0, secondDot) : rest;
 
     Settings_SaveString("LastNewsEntry", fullEntry);
-
     LogDebug("News request for: " + symbol + " conId: " + conIdStr);
 
     HWND newsWnd = g_AppWindows[NEWS_CLASS_NAME];
     if (newsWnd) SetWindowTextA(newsWnd, ("News: " + symbol).c_str());
 
-    if (hNewsResults) SendMessage(hNewsResults, LB_RESETCONTENT, 0, 0);
+    if (hNewsResults) ListView_DeleteAllItems(hNewsResults);
     api.reqNewsForSymbol(std::stoi(conIdStr), symbol);
 }
 
-// ─── Window Procedure ─────────────────────────────────────────────────────────
+// ── Window procedure ──────────────────────────────────────────────────────────
 
 LRESULT CALLBACK WndProcNews(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-    const int comboGap = 8;
     switch (message) {
+
     case WM_CREATE: {
         HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
-        const int margin = 8;
-        const int rowH   = 24;
-        const int labelW = 55;
+        const int m = 8;
 
-        // Create two comboboxes side-by-side (List | Symbol)
-        int comboY = margin;
-        int comboH = 200;
-
+        // Combos side by side — hidden until focused
         hNewsListCombo = CreateWindowA("COMBOBOX", NULL,
             WS_CHILD | WS_VSCROLL | CBS_DROPDOWNLIST,
-            margin, comboY, 180, comboH,
+            m, m, 180, 200,
             hWnd, (HMENU)ID_NEWS_LIST_COMBO, hInst, NULL);
 
         hNewsSymCombo = CreateWindowA("COMBOBOX", NULL,
             WS_CHILD | WS_VSCROLL | CBS_DROPDOWNLIST,
-            margin + 180 + comboGap, comboY, 180, comboH,
+            m + 180 + NEWS_COMBO_GAP, m, 180, 200,
             hWnd, (HMENU)ID_NEWS_SYM_COMBO, hInst, NULL);
 
-        // Start hidden until mouse hover
-        ShowWindow(hNewsListCombo, SW_HIDE);
-        ShowWindow(hNewsSymCombo,  SW_HIDE);
-
-        // News results list — fills remaining space
-        int listY = comboY + rowH + 7;
-        hNewsResults = CreateWindowA("LISTBOX", NULL,
-            WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL | LBS_NOTIFY,
-            margin, listY, 400 - margin * 2, 500 - listY - margin,
+        // Results ListView — single "Headline" column, full width
+        hNewsResults = CreateWindowExA(
+            WS_EX_CLIENTEDGE, "SysListView32", "",
+            WS_CHILD | WS_VISIBLE | WS_BORDER |
+            LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER,
+            0, 0, 400, 500,
             hWnd, (HMENU)ID_NEWS_RESULTS_LIST, hInst, NULL);
+
+        DWORD exStyle = LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER;
+        if (Settings_DarkMode()) exStyle |= LVS_EX_GRIDLINES;
+        ListView_SetExtendedListViewStyle(hNewsResults, exStyle);
+
+        LVCOLUMNA lvc = {};
+        lvc.mask    = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT;
+        lvc.cx      = 400;
+        lvc.pszText = (LPSTR)"Headline";
+        lvc.fmt     = LVCFMT_LEFT;
+        ListView_InsertColumn(hNewsResults, 0, &lvc);
 
         api.setNewsWindow(hWnd);
         SetWindowTextA(hWnd, "News");
 
-        // Restore last session
         std::string lastList  = Settings_LoadString("LastNewsList");
         std::string lastEntry = Settings_LoadString("LastNewsEntry");
-
         News_LoadListCombo(lastList);
         if (News_LoadSymbolCombo(lastEntry)) {
-            // Re-request news for the restored symbol
             int sel = (int)SendMessage(hNewsSymCombo, CB_GETCURSEL, 0, 0);
             if (sel != CB_ERR && sel < (int)newsSymEntries.size())
                 News_RequestForSymbol(newsSymEntries[sel]);
@@ -151,79 +151,26 @@ LRESULT CALLBACK WndProcNews(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         break;
     }
 
-    case WM_SIZE: {
-        if (!hNewsResults) return 0;
-        RECT rc;
-        GetClientRect(hWnd, &rc);
-        const int margin = 8;
-        const int rowH   = 24;
-        const int comboGap = 8;
-        int listY = margin + rowH + 7;   // below combo row
-        MoveWindow(hNewsResults,
-                   margin, listY,
-                   rc.right  - margin * 2,
-                   rc.bottom - listY - margin,
-                   TRUE);
-
-        // Position combos side-by-side and stretch with window
-        int availW = rc.right - margin * 2 - comboGap;
-        int eachW = availW / 2;
-        SetWindowPos(hNewsListCombo, NULL, margin, margin, eachW, 200,
-                 SWP_NOZORDER | SWP_NOACTIVATE);
-        SetWindowPos(hNewsSymCombo,  NULL, margin + eachW + comboGap, margin, eachW, 200,
-                 SWP_NOZORDER | SWP_NOACTIVATE);
+    case WM_SIZE:
+        News_Layout(hWnd);
         break;
-    }
 
-    case WM_ACTIVATE: {
-        // Show combos when the window becomes active/focused; hide when inactive
+    case WM_ACTIVATE:
         if (LOWORD(wParam) != WA_INACTIVE) {
-            if (hNewsListCombo) ShowWindow(hNewsListCombo, SW_SHOW);
-            if (hNewsSymCombo)  ShowWindow(hNewsSymCombo,  SW_SHOW);
+            ShowWindow(hNewsListCombo, SW_SHOW);
+            ShowWindow(hNewsSymCombo,  SW_SHOW);
         } else {
-            if (hNewsListCombo) ShowWindow(hNewsListCombo, SW_HIDE);
-            if (hNewsSymCombo)  ShowWindow(hNewsSymCombo,  SW_HIDE);
+            ShowWindow(hNewsListCombo, SW_HIDE);
+            ShowWindow(hNewsSymCombo,  SW_HIDE);
         }
-
-        // Recalculate layout immediately
-        RECT rc;
-        GetClientRect(hWnd, &rc);
-        const int margin = 8;
-        const int rowH   = 24;
-        const int comboGap = 8;
-
-        bool combosVisible = (hNewsListCombo && IsWindowVisible(hNewsListCombo));
-        int listY = combosVisible ? (margin + rowH + 7) : margin;
-
-        // Move/resize results list
-        if (hNewsResults) {
-            MoveWindow(hNewsResults,
-                       margin, listY,
-                       rc.right  - margin * 2,
-                       rc.bottom - listY - margin,
-                       TRUE);
-        }
-
-        // Position combos if visible
-        if (combosVisible && hNewsListCombo && hNewsSymCombo) {
-            int availW = rc.right - margin * 2 - comboGap;
-            int eachW = availW / 2;
-            SetWindowPos(hNewsListCombo, NULL, margin, margin, eachW, 200,
-                         SWP_NOZORDER | SWP_NOACTIVATE);
-            SetWindowPos(hNewsSymCombo,  NULL, margin + eachW + comboGap, margin, eachW, 200,
-                         SWP_NOZORDER | SWP_NOACTIVATE);
-        }
+        News_Layout(hWnd);
         return 0;
-    }
 
     case WM_COMMAND:
         if (LOWORD(wParam) == ID_NEWS_LIST_COMBO && HIWORD(wParam) == CBN_SELCHANGE) {
-            std::string listName = News_GetSelectedList();
-            Settings_SaveString("LastNewsList", listName);
-            News_LoadSymbolCombo();          // reset symbol combo for new list
-            // Auto-load news for first symbol in the new list
-            if (!newsSymEntries.empty())
-                News_RequestForSymbol(newsSymEntries[0]);
+            Settings_SaveString("LastNewsList", News_GetSelectedList());
+            News_LoadSymbolCombo();
+            if (!newsSymEntries.empty()) News_RequestForSymbol(newsSymEntries[0]);
         }
         if (LOWORD(wParam) == ID_NEWS_SYM_COMBO && HIWORD(wParam) == CBN_SELCHANGE) {
             int sel = (int)SendMessage(hNewsSymCombo, CB_GETCURSEL, 0, 0);
@@ -233,11 +180,34 @@ LRESULT CALLBACK WndProcNews(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         break;
 
     case WM_NEWS_RESULTS: {
+        if (!hNewsResults) break;
         auto news = api.getNewsResults();
-        if (hNewsResults) {
-            SendMessage(hNewsResults, LB_RESETCONTENT, 0, 0);
-            for (const auto& item : news)
-                SendMessageA(hNewsResults, LB_ADDSTRING, 0, (LPARAM)item.c_str());
+        ListView_DeleteAllItems(hNewsResults);
+        for (int i = 0; i < (int)news.size(); ++i) {
+            LVITEMA lvi = {};
+            lvi.mask    = LVIF_TEXT;
+            lvi.iItem   = i;
+            lvi.pszText = (LPSTR)news[i].c_str();
+            ListView_InsertItem(hNewsResults, &lvi);
+        }
+        // Stretch the single column to fill the list width
+        RECT rc; GetClientRect(hNewsResults, &rc);
+        ListView_SetColumnWidth(hNewsResults, 0, rc.right);
+        break;
+    }
+
+    // ── Dark mode ─────────────────────────────────────────────────────────────
+    case WM_NOTIFY: {
+        NMHDR* hdr = (NMHDR*)lParam;
+        if (hdr->idFrom != ID_NEWS_RESULTS_LIST || hdr->code != NM_CUSTOMDRAW) break;
+        NMLVCUSTOMDRAW* cd = (NMLVCUSTOMDRAW*)lParam;
+        if (!Settings_DarkMode()) break;
+        switch (cd->nmcd.dwDrawStage) {
+            case CDDS_PREPAINT:     return CDRF_NOTIFYITEMDRAW;
+            case CDDS_ITEMPREPAINT:
+                cd->clrTextBk = (cd->nmcd.dwItemSpec % 2 == 0) ? DM_BG : DM_BG2;
+                cd->clrText   = DM_TEXT;
+                return CDRF_DODEFAULT;
         }
         break;
     }

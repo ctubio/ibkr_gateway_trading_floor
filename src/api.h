@@ -8,6 +8,7 @@
 #define WM_ORDERS_UPDATE   (WM_USER + 7)
 #define WM_DIAMONDS_UPDATE (WM_USER + 8)
 #define WM_NEWS_RESULTS    (WM_USER + 9)
+#define WM_TIMESALES_TICK  (WM_USER + 10)
 
 #include <algorithm>
 #include "Contract.h"
@@ -66,6 +67,13 @@ public:
         //double percentChange = 0.0;
     };
 
+    struct TsTickEntry {
+        double      price    = 0.0;
+        double      size     = 0.0;
+        std::string time;       // formatted HH:MM:SS
+        std::string exchange;
+    };
+
 private:
     EClientSocket* client;
     EReaderOSSignal signal;
@@ -81,9 +89,11 @@ private:
     std::atomic<bool> tradingConnected{false};
     std::atomic<bool> marketDataSoundPlayed{false};
 
-    HWND hCoinWnd     = nullptr;
-    HWND hOrdersWnd   = nullptr;
-    HWND hDiamondsWnd = nullptr;
+    HWND hCoinWnd        = nullptr;
+    HWND hOrdersWnd      = nullptr;
+    HWND hDiamondsWnd    = nullptr;
+    HWND hTimesalesWnd   = nullptr;
+    int  tsReqId         = 9020;
 
     std::mutex summaryMutex;
     std::map<std::string, std::string> summaryData;
@@ -532,22 +542,90 @@ public:
 
     // ── Portfolio ─────────────────────────────────────────────────────────────
 
-    void setDiamondsWindow(HWND hWnd) { hDiamondsWnd = hWnd; }
+    void setDiamondsWindow(HWND hWnd) {
+        hDiamondsWnd = hWnd;
+        if (!hWnd || !client->isConnected()) return;
+        {
+            std::lock_guard<std::mutex> lock(portfolioMutex);
+            portfolioMap.clear();
+        }
+        client->reqPositions();
+    }
+
+    void unsetDiamondsWindow() {
+        hDiamondsWnd = nullptr;
+        if (client->isConnected())
+            client->cancelPositions();
+    }
 
     void position(const std::string& account, const Contract& contract,
-                  Decimal shares, double avgCost) {
+                  Decimal shares, double avgCost) override {
         std::lock_guard<std::mutex> lock(portfolioMutex);
         PositionInfo& info = portfolioMap[contract.symbol];
         info.symbol  = contract.symbol;
         info.shares  = shares;
         info.avgCost = avgCost;
-        if (hDiamondsWnd) PostMessage(hDiamondsWnd, WM_DIAMONDS_UPDATE, 0, 0);
+        // Don't post per-row — wait for positionEnd for a single bulk update.
     }
 
-    void positionEnd() { LogDebug("Position update ended"); }
+    void positionEnd() override {
+        LogDebug("Position update complete, " + std::to_string(portfolioMap.size()) + " positions");
+        if (hDiamondsWnd && IsWindow(hDiamondsWnd))
+            PostMessage(hDiamondsWnd, WM_DIAMONDS_UPDATE, 0, 0);
+    }
 
     std::mutex& getPortfolioMutex() { return portfolioMutex; }
     std::map<std::string, TradingAPI::PositionInfo>& getPortfolioMap() { return portfolioMap; }
+
+    // ── Time and Sales ─────────────────────────────────────────────────────────
+
+    void setTimesalesWindow(HWND hWnd, int conId, const std::string& symbol) {
+        // Cancel any existing subscription first
+        if (hTimesalesWnd && client->isConnected())
+            client->cancelTickByTickData(tsReqId);
+
+        hTimesalesWnd = hWnd;
+        if (!hWnd || !client->isConnected()) return;
+
+        Contract contract;
+        contract.conId    = conId;
+        contract.symbol   = symbol;
+        contract.secType  = "STK";
+        contract.exchange = "SMART";
+        contract.currency = "USD";
+
+        // "AllLast" includes trades from all exchanges.
+        // numberOfTicks=0 means streaming (not snapshot).
+        // ignoreSize=false means size-only updates are included.
+        client->reqTickByTickData(tsReqId, contract, "AllLast", 0, false);
+        LogDebug("Tick-by-tick subscribed: " + symbol);
+    }
+
+    void unsetTimesalesWindow() {
+        if (client->isConnected() && hTimesalesWnd)
+            client->cancelTickByTickData(tsReqId);
+        hTimesalesWnd = nullptr;
+    }
+
+    void tickByTickAllLast(int reqId, int tickType, time_t time,
+                           double price, Decimal size,
+                           const TickAttribLast& tickAttribLast,
+                           const std::string& exchange,
+                           const std::string& specialConditions) override {
+        if (!hTimesalesWnd || !IsWindow(hTimesalesWnd)) return;
+
+        // Allocate on heap — WM_TIMESALES_TICK handler owns and deletes it.
+        auto* tick      = new TsTickEntry();
+        tick->price     = price;
+        tick->size      = DecimalFunctions::decimalToDouble(size);
+        tick->exchange  = exchange;
+
+        char buf[32] = {};
+        strftime(buf, sizeof(buf), "%H:%M:%S", localtime(&time));
+        tick->time = buf;
+
+        PostMessage(hTimesalesWnd, WM_TIMESALES_TICK, 0, (LPARAM)tick);
+    }
 
     // ── Symbol search ─────────────────────────────────────────────────────────
 
@@ -634,6 +712,7 @@ public:
     #define position          position_ignored
     #define positionEnd       positionEnd_ignored
     #define tickNews          tickNews_ignored
+    #define tickByTickAllLast tickByTickAllLast_ignored
 
     #define EWRAPPER_VIRTUAL_IMPL {}
     #include "EWrapper_prototypes.h"
@@ -656,5 +735,6 @@ public:
     #undef position
     #undef positionEnd
     #undef tickNews
+    #undef tickByTickAllLast
 
 } api;
