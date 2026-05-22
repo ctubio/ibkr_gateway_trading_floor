@@ -130,12 +130,26 @@ LRESULT CALLBACK WndProcNews(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         if (Settings_DarkMode()) exStyle |= LVS_EX_GRIDLINES;
         ListView_SetExtendedListViewStyle(hNewsResults, exStyle);
 
+        // Add columns for each NewsTickEntry property
         LVCOLUMNA lvc = {};
-        lvc.mask    = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT;
-        lvc.cx      = 400;
-        lvc.pszText = (LPSTR)"Headline";
-        lvc.fmt     = LVCFMT_LEFT;
+        lvc.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT;
+        lvc.fmt = LVCFMT_LEFT;
+
+        lvc.cx = 90;
+        lvc.pszText = (LPSTR)"Time";
         ListView_InsertColumn(hNewsResults, 0, &lvc);
+
+        lvc.cx = 100;
+        lvc.pszText = (LPSTR)"Provider";
+        ListView_InsertColumn(hNewsResults, 1, &lvc);
+
+        lvc.cx = 350;
+        lvc.pszText = (LPSTR)"Headline";
+        ListView_InsertColumn(hNewsResults, 2, &lvc);
+
+        lvc.cx = 150;
+        lvc.pszText = (LPSTR)"Extra Data";
+        ListView_InsertColumn(hNewsResults, 3, &lvc);
 
         api.setNewsWindow(hWnd);
         SetWindowTextA(hWnd, "News");
@@ -180,19 +194,37 @@ LRESULT CALLBACK WndProcNews(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         break;
 
     case WM_NEWS_RESULTS: {
-        if (!hNewsResults) break;
-        auto news = api.getNewsResults();
-        ListView_DeleteAllItems(hNewsResults);
-        for (int i = 0; i < (int)news.size(); ++i) {
-            LVITEMA lvi = {};
-            lvi.mask    = LVIF_TEXT;
-            lvi.iItem   = i;
-            lvi.pszText = (LPSTR)news[i].c_str();
-            ListView_InsertItem(hNewsResults, &lvi);
-        }
-        // Stretch the single column to fill the list width
-        RECT rc; GetClientRect(hNewsResults, &rc);
-        ListView_SetColumnWidth(hNewsResults, 0, rc.right);
+        auto* news = reinterpret_cast<TradingAPI::NewsTickEntry*>(lParam);
+        if (!news) break;
+        if (!hNewsResults) { delete news; break; }
+
+        LogDebug("[" + news->providerCode + "] " + news->headline);
+
+        // Insert new item at top (newest first)
+        LVITEMA lvi = {};
+        lvi.mask  = LVIF_TEXT;
+        lvi.iItem = 0;
+        lvi.pszText = (LPSTR)news->timeStamp.c_str();
+        int itemIdx = (int)SendMessageA(hNewsResults, LVM_INSERTITEMA, 0, (LPARAM)&lvi);
+
+        // Set subitems for remaining columns
+        LVITEMA lvi2 = {};
+        lvi2.iItem = itemIdx;
+        lvi2.mask = LVIF_TEXT;
+
+        lvi2.iSubItem = 1;
+        lvi2.pszText = (LPSTR)news->providerCode.c_str();
+        SendMessageA(hNewsResults, LVM_SETITEMA, 0, (LPARAM)&lvi2);
+
+        lvi2.iSubItem = 2;
+        lvi2.pszText = (LPSTR)news->headline.c_str();
+        SendMessageA(hNewsResults, LVM_SETITEMA, 0, (LPARAM)&lvi2);
+
+        lvi2.iSubItem = 3;
+        lvi2.pszText = (LPSTR)news->extraData.c_str();
+        SendMessageA(hNewsResults, LVM_SETITEMA, 0, (LPARAM)&lvi2);
+
+        delete news;
         break;
     }
 

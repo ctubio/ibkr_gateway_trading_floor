@@ -74,6 +74,13 @@ public:
         std::string exchange;
     };
 
+    struct NewsTickEntry {
+        std::string providerCode;
+        std::string headline;
+        std::string timeStamp;  // timestamp string
+        std::string extraData;
+    };
+
 private:
     EClientSocket* client;
     EReaderOSSignal signal;
@@ -664,7 +671,6 @@ public:
 
     void reqNewsForSymbol(int conId, const std::string& symbol) {
         if (!client->isConnected()) return;
-        { std::lock_guard<std::mutex> lock(newsMutex); newsResults.clear(); }
 
         Contract contract;
         contract.conId    = conId;
@@ -673,24 +679,52 @@ public:
         contract.exchange = "SMART";
         contract.currency = "USD";
 
+        // Cancel previous real-time news subscription if any
         if (newsRequestActive.exchange(true))
             client->cancelMktData(9002);
 
+        // 1. Historical headlines — last 7 days, up to 300 results, all providers
+        client->reqHistoricalNews(9003, conId, "", "", "", 300, {});
+
+        // 2. Real-time headlines going forward
         client->reqMktData(9002, contract, "mdoff,292", false, false, {});
     }
 
-    std::vector<std::string> getNewsResults() {
-        std::lock_guard<std::mutex> lock(newsMutex);
-        return newsResults;
+    void historicalNews(int reqId, const std::string& time,
+                        const std::string& providerCode,
+                        const std::string& articleId,
+                        const std::string& headline) override {
+        std::string line = "[" + providerCode + "] " + headline;
+        LogDebug("Received historical news: " + line);
+        if (hNewsWnd) {
+            auto* news = new NewsTickEntry();
+            news->providerCode = providerCode;
+            news->headline = headline;
+            news->timeStamp = time;
+            news->extraData = "";
+            PostMessage(hNewsWnd, WM_NEWS_RESULTS, 0, (LPARAM)news);
+        }
+    }
+
+    void historicalNewsEnd(int reqId, bool hasMore) override {
+        // Nothing extra needed — headlines were posted one by one as they arrived.
     }
 
     void tickNews(int reqId, time_t timeStamp, const std::string& providerCode,
                   const std::string& articleId, const std::string& headline,
                   const std::string& extraData) override {
         std::string line = "[" + providerCode + "] " + headline;
-        if (!extraData.empty()) line += " - " + extraData;
-        { std::lock_guard<std::mutex> lock(newsMutex); newsResults.push_back(line); }
-        if (hNewsWnd) PostMessage(hNewsWnd, WM_NEWS_RESULTS, 0, 0);
+        LogDebug("Received real-time news: " + line);
+        if (!extraData.empty()) line += "  " + extraData;
+        // Heap-allocate — WM_NEWS_RESULTS handler owns and deletes it.
+        if (hNewsWnd) {
+            auto* news = new NewsTickEntry();
+            news->providerCode = providerCode;
+            news->headline = headline;
+            news->timeStamp = FormatTime(timeStamp);
+            news->extraData = extraData;
+            PostMessage(hNewsWnd, WM_NEWS_RESULTS, 0, (LPARAM)news);
+        }
     }
 
     // ── EWrapper stubs (all unimplemented callbacks) ──────────────────────────
@@ -712,6 +746,8 @@ public:
     #define position          position_ignored
     #define positionEnd       positionEnd_ignored
     #define tickNews          tickNews_ignored
+    #define historicalNews    historicalNews_ignored
+    #define historicalNewsEnd historicalNewsEnd_ignored
     #define tickByTickAllLast tickByTickAllLast_ignored
 
     #define EWRAPPER_VIRTUAL_IMPL {}
@@ -735,6 +771,8 @@ public:
     #undef position
     #undef positionEnd
     #undef tickNews
+    #undef historicalNews
+    #undef historicalNewsEnd
     #undef tickByTickAllLast
 
 } api;

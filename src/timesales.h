@@ -29,8 +29,8 @@ static const int TS_SELECTOR_H = 8 + TS_COMBO_H + 8;
 
 struct TsCol { const char* header; int width; int fmt; };
 static const TsCol tsCols[] = {
-    { "Price",    90, LVCFMT_RIGHT },
-    { "Size",     80, LVCFMT_RIGHT },
+    { "Price",    60, LVCFMT_RIGHT },
+    { "Size",     40, LVCFMT_RIGHT },
     { "Time",     90, LVCFMT_LEFT  },
     { "Exchange", 90, LVCFMT_LEFT  },
 };

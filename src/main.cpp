@@ -35,7 +35,7 @@
 #include "dashboard.h"
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
-    mutex_instance();
+    MutexInstance();
 
     InitDarkBrushes();
     

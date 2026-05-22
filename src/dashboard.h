@@ -226,7 +226,7 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
     return HandleCommonMessages(hWnd, message, wParam, lParam);
 }
 
-void mutex_instance() {
+void MutexInstance() {
     HANDLE hMutex = CreateMutex(NULL, TRUE, "Global\\IBKRGatewayClientMutex_17072025");
 
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
