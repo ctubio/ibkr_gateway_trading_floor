@@ -401,8 +401,6 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 
             Book_UpdateControlStates();
 
-            
-            api.setSymbolSearchWindow(hWnd);
             break;
         }
 
@@ -540,6 +538,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                             EnableWindow(hAutoComplete, FALSE);
                         } else {
                             showingOffline = false;
+                            api.setSymbolSearchWindow(hWnd); // re-register before each search so results come back here
                             api.searchSymbols(query);
                         }
                     } else {

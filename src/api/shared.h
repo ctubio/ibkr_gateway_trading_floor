@@ -1,4 +1,3 @@
-// shared.h
 #pragma once
 
 #include <cstring>

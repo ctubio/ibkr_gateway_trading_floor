@@ -163,19 +163,18 @@ LRESULT CALLBACK WndProcTsSearch(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
     switch (message) {
         case WM_CREATE: {
             HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
-            CreateWindowA("STATIC", "Search Symbol:", WS_CHILD | WS_VISIBLE, 10, 10, 100, 20, hWnd, NULL, hInst, NULL);
+            CreateWindowA("STATIC", "Search Symbol:", WS_CHILD | WS_VISIBLE, 10, 10, 150, 20, hWnd, NULL, hInst, NULL);
             hTsSearchEdit = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_UPPERCASE | ES_AUTOHSCROLL, 10, 30, 240, 24, hWnd, (HMENU)1, hInst, NULL);
             SetWindowSubclass(hTsSearchEdit, TsSearchEditSubclass, 1, 0);
             hTsSearchList = CreateWindowA("LISTBOX", "", WS_CHILD | WS_VISIBLE | WS_BORDER | LBS_NOTIFY, 10, 60, 240, 150, hWnd, (HMENU)2, hInst, NULL);
             SetWindowSubclass(hTsSearchList, TsSearchListSubclass, 2, 0);
             SetFocus(hTsSearchEdit);
-            api.setSymbolSearchWindow(hWnd);
             break;
         }
         case WM_COMMAND:
             if (LOWORD(wParam) == 1 && HIWORD(wParam) == EN_CHANGE) {
                 char t[256] = {}; GetWindowTextA(hTsSearchEdit, t, sizeof(t));
-                if (strlen(t) > 0) api.searchSymbols(t);
+                if (strlen(t) > 0) { api.setSymbolSearchWindow(hWnd); api.searchSymbols(t); }
                 else { SendMessage(hTsSearchList, LB_RESETCONTENT, 0, 0); tsSearchResults.clear(); }
             }
             break;
@@ -206,7 +205,7 @@ void StartTimesalesSearch() {
         RegisterClass(&wc);
         registered = true;
     }
-    HWND hWnd = CreateWindowExA(WS_EX_DLGMODALFRAME | WS_EX_TOPMOST, "TNTTsSearchWindowClass", "Time & Sales - Search", 
+    HWND hWnd = CreateWindowExA(WS_EX_DLGMODALFRAME | WS_EX_TOPMOST, "TNTTsSearchWindowClass", "Time & Sales - Search Symbol", 
         WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE, 
         (GetSystemMetrics(SM_CXSCREEN) - 260) / 2, (GetSystemMetrics(SM_CYSCREEN) - 240) / 2, 275, 260, 
         NULL, NULL, GetModuleHandle(NULL), NULL);
