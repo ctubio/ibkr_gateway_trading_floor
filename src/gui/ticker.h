@@ -150,6 +150,8 @@ static void Ticker_Subscribe(HWND hWnd, const std::string& listName) {
         std::string rest = entry.substr(d1 + 1);
         auto d2 = rest.find('.');
         std::string symbol = (d2 != std::string::npos) ? rest.substr(0, d2) : rest;
+        int conId = std::stoi(entry.substr(0, d1));
+        LogDebug("Symbol is: " + symbol + ", conId: " + std::to_string(conId));
         Ticker_InsertRow(symbol);
     }
 
@@ -249,29 +251,40 @@ LRESULT CALLBACK WndProcTicker(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
 
     case WM_NOTIFY: {
         NMHDR* hdr = (NMHDR*)lParam;
-        if (hdr->idFrom != ID_TICKER_LIST || hdr->code != NM_CUSTOMDRAW) break;
-        NMLVCUSTOMDRAW* cd = (NMLVCUSTOMDRAW*)lParam;
-        bool dark = Settings_DarkMode();
-        switch (cd->nmcd.dwDrawStage) {
-            case CDDS_PREPAINT: return CDRF_NOTIFYITEMDRAW;
-            case CDDS_ITEMPREPAINT:
-                if (dark) {
-                    cd->clrTextBk = (cd->nmcd.dwItemSpec % 2 == 0) ? DM_BG : DM_BG2;
-                    cd->clrText   = DM_TEXT;
+        if (hdr->idFrom != ID_TICKER_LIST) break;
+        if (hdr->code == NM_DBLCLK) {
+            LPNMITEMACTIVATE act = (LPNMITEMACTIVATE)lParam;
+            int row = act->iItem;
+            if (row != -1) {
+                char text[256];
+                ListView_GetItemText(hTickerList, row, 0, text, sizeof(text));
+                MessageBoxA(hWnd, text, "NM_DBLCLK", MB_OK);
+            }
+        }
+        if (hdr->code == NM_CUSTOMDRAW) {
+            NMLVCUSTOMDRAW* cd = (NMLVCUSTOMDRAW*)lParam;
+            bool dark = Settings_DarkMode();
+            switch (cd->nmcd.dwDrawStage) {
+                case CDDS_PREPAINT: return CDRF_NOTIFYITEMDRAW;
+                case CDDS_ITEMPREPAINT:
+                    if (dark) {
+                        cd->clrTextBk = (cd->nmcd.dwItemSpec % 2 == 0) ? DM_BG : DM_BG2;
+                        cd->clrText   = DM_TEXT;
+                    }
+                    return CDRF_NOTIFYSUBITEMDRAW;
+                case CDDS_ITEMPREPAINT | CDDS_SUBITEM: {
+                    if (cd->iSubItem == 2 || cd->iSubItem == 3) {
+                        // Change / %Change — colour green or red
+                        char buf[32] = {};
+                        ListView_GetItemText(hTickerList, (int)cd->nmcd.dwItemSpec, 2, buf, sizeof(buf));
+                        double v = atof(buf);
+                        if (v > 0)      cd->clrText = RGB(80, 200, 120);
+                        else if (v < 0) cd->clrText = RGB(220, 80, 80);
+                        if (dark) cd->clrTextBk = (cd->nmcd.dwItemSpec % 2 == 0) ? DM_BG : DM_BG2;
+                        return CDRF_NEWFONT;
+                    }
+                    return CDRF_DODEFAULT;
                 }
-                return CDRF_NOTIFYSUBITEMDRAW;
-            case CDDS_ITEMPREPAINT | CDDS_SUBITEM: {
-                if (cd->iSubItem == 2 || cd->iSubItem == 3) {
-                    // Change / %Change — colour green or red
-                    char buf[32] = {};
-                    ListView_GetItemText(hTickerList, (int)cd->nmcd.dwItemSpec, 2, buf, sizeof(buf));
-                    double v = atof(buf);
-                    if (v > 0)      cd->clrText = RGB(80, 200, 120);
-                    else if (v < 0) cd->clrText = RGB(220, 80, 80);
-                    if (dark) cd->clrTextBk = (cd->nmcd.dwItemSpec % 2 == 0) ? DM_BG : DM_BG2;
-                    return CDRF_NEWFONT;
-                }
-                return CDRF_DODEFAULT;
             }
         }
         break;

@@ -54,6 +54,7 @@ public:
 
     struct PositionInfo {
         std::string symbol;
+        int         conId;
         double      shares            = 0.0;
         double      avgCost           = 0.0;
         double      dailyPnL          = 0.0;
