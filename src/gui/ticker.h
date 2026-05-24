@@ -42,8 +42,14 @@ static std::string Ticker_GetSelectedList() {
     return name;
 }
 
-// Find a ListView row by its lParam (which stores symbol as std::string*).
-// Returns the row index, or -1 if not found.
+// Per-row data stored as lParam — holds both symbol and conId so double-click
+// can show either, and so the same symbol on different exchanges is unambiguous.
+struct TickerRowData {
+    std::string symbol;
+    int         conId = 0;
+};
+
+// Find a ListView row by symbol. Returns row index or -1.
 static int Ticker_FindRow(const std::string& symbol) {
     int count = ListView_GetItemCount(hTickerList);
     for (int i = 0; i < count; ++i) {
@@ -51,13 +57,13 @@ static int Ticker_FindRow(const std::string& symbol) {
         lvi.mask  = LVIF_PARAM;
         lvi.iItem = i;
         SendMessageA(hTickerList, LVM_GETITEMA, 0, (LPARAM)&lvi);
-        auto* sym = reinterpret_cast<std::string*>(lvi.lParam);
-        if (sym && *sym == symbol) return i;
+        auto* rd = reinterpret_cast<TickerRowData*>(lvi.lParam);
+        if (rd && rd->symbol == symbol) return i;
     }
     return -1;
 }
 
-// Free all lParam strings and delete all rows.
+// Free all lParam TickerRowData structs and delete all rows.
 static void Ticker_ClearList() {
     if (!hTickerList) return;
     int count = ListView_GetItemCount(hTickerList);
@@ -66,18 +72,18 @@ static void Ticker_ClearList() {
         lvi.mask  = LVIF_PARAM;
         lvi.iItem = i;
         SendMessageA(hTickerList, LVM_GETITEMA, 0, (LPARAM)&lvi);
-        delete reinterpret_cast<std::string*>(lvi.lParam);
+        delete reinterpret_cast<TickerRowData*>(lvi.lParam);
     }
     ListView_DeleteAllItems(hTickerList);
 }
 
-// Insert an empty row for a symbol (placeholder while data arrives).
-static void Ticker_InsertRow(const std::string& symbol) {
-    auto* sym = new std::string(symbol);
+// Insert a placeholder row for a symbol+conId pair.
+static void Ticker_InsertRow(const std::string& symbol, int conId) {
+    auto* rd    = new TickerRowData{symbol, conId};
     LVITEMA lvi = {};
     lvi.mask    = LVIF_TEXT | LVIF_PARAM;
-    lvi.iItem   = ListView_GetItemCount(hTickerList); // append
-    lvi.lParam  = (LPARAM)sym;
+    lvi.iItem   = ListView_GetItemCount(hTickerList);
+    lvi.lParam  = (LPARAM)rd;
     lvi.pszText = (LPSTR)symbol.c_str();
     SendMessageA(hTickerList, LVM_INSERTITEMA, 0, (LPARAM)&lvi);
 }
@@ -151,8 +157,7 @@ static void Ticker_Subscribe(HWND hWnd, const std::string& listName) {
         auto d2 = rest.find('.');
         std::string symbol = (d2 != std::string::npos) ? rest.substr(0, d2) : rest;
         int conId = std::stoi(entry.substr(0, d1));
-        LogDebug("Symbol is: " + symbol + ", conId: " + std::to_string(conId));
-        Ticker_InsertRow(symbol);
+        Ticker_InsertRow(symbol, conId);
     }
 
     SetWindowTextA(hWnd, ("Ticker: " + listName).c_str());
@@ -235,7 +240,6 @@ LRESULT CALLBACK WndProcTicker(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
         delete sym;
         break;
     }
-
     case WM_API_UPDATE:
         if (api.isMarketDataConnected() && api.isTradingConnected()) {
             // Re-subscribe after reconnect with the same entries.
@@ -255,10 +259,17 @@ LRESULT CALLBACK WndProcTicker(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
         if (hdr->code == NM_DBLCLK) {
             LPNMITEMACTIVATE act = (LPNMITEMACTIVATE)lParam;
             int row = act->iItem;
-            if (row != -1) {
-                char text[256];
-                ListView_GetItemText(hTickerList, row, 0, text, sizeof(text));
-                MessageBoxA(hWnd, text, "NM_DBLCLK", MB_OK);
+            if (row >= 0) {
+                LVITEMA lvi = {};
+                lvi.mask  = LVIF_PARAM;
+                lvi.iItem = row;
+                SendMessageA(hTickerList, LVM_GETITEMA, 0, (LPARAM)&lvi);
+                auto* rd = reinterpret_cast<TickerRowData*>(lvi.lParam);
+                if (rd) {
+                    char msg[256];
+                    snprintf(msg, sizeof(msg), "Symbol: %s\nconId: %d", rd->symbol.c_str(), rd->conId);
+                    MessageBoxA(hWnd, msg, "NM_DBLCLK", MB_OK);
+                }
             }
         }
         if (hdr->code == NM_CUSTOMDRAW) {
