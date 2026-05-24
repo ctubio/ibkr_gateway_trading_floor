@@ -18,7 +18,7 @@ static const int DIAMOND_COL_COUNT = (int)(sizeof(diamondCols) / sizeof(diamondC
 
 // ── Repopulate ────────────────────────────────────────────────────────────────
 
-static void Diamonds_Repopulate(HWND hList) {
+static void Diamonds_Repopulate(HWND hWnd, HWND hList) {
     SendMessage(hList, WM_SETREDRAW, FALSE, 0);
     ListView_DeleteAllItems(hList);
 
@@ -67,6 +67,8 @@ static void Diamonds_Repopulate(HWND hList) {
 
     SendMessage(hList, WM_SETREDRAW, TRUE, 0);
     RedrawWindow(hList, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+    
+    SetWindowTextA(hWnd, ("Diamonds: " + std::to_string(rows.size()) + " Positions").c_str());
 }
 
 // ── Window procedure ──────────────────────────────────────────────────────────
@@ -114,7 +116,7 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 
     case WM_DIAMONDS_UPDATE: {
         HWND hList = GetDlgItem(hWnd, 1);
-        if (hList) Diamonds_Repopulate(hList);
+        if (hList) Diamonds_Repopulate(hWnd, hList);
         break;
     }
 
@@ -160,7 +162,7 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
         HWND hList = GetDlgItem(hWnd, 1);
         if (hList) {
             if (api.isMarketDataConnected() && api.isTradingConnected()) {
-                Diamonds_Repopulate(hList);
+                Diamonds_Repopulate(hWnd, hList);
             } else {
                 ListView_DeleteAllItems(hList);
             }

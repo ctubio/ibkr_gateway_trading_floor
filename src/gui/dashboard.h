@@ -154,7 +154,19 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 
         case WM_TRAYICON:
             if (lParam == WM_LBUTTONUP) {
-                ShowWindow(hWnd, IsWindowVisible(hWnd) ? SW_HIDE : SW_SHOW);
+                if (IsWindowVisible(hWnd) && !IsIconic(hWnd)) { 
+                    ShowWindow(hWnd, SW_HIDE);
+                } else {
+                    if (IsIconic(hWnd)) { 
+                        ShowWindow(hWnd, SW_RESTORE);
+                    } else {
+                        ShowWindow(hWnd, SW_SHOW);
+                    }
+                    
+                    SetForegroundWindow(hWnd);
+                    SetActiveWindow(hWnd);
+                    SetFocus(hWnd);
+                }
             }
             else if (lParam == WM_RBUTTONUP) {
                 HMENU hMenu = CreatePopupMenu();
