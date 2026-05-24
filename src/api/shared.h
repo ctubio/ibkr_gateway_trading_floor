@@ -3,19 +3,11 @@
 #include <cstring>
 #include <algorithm>
 #include <string>
-
-// Dark mode colors
-#define DM_BG        RGB(32,  32,  32)
-#define DM_BG2       RGB(45,  45,  45)
-#define DM_TEXT      RGB(220, 220, 220)
-#define DM_BORDER    RGB(70,  70,  70)
-
-// Light mode colors  
-#define LM_BG        GetSysColor(COLOR_BTNFACE)
-#define LM_TEXT      GetSysColor(COLOR_WINDOWTEXT)
-
-HBRUSH hDarkBrush = NULL;
-HBRUSH hDarkBrush2 = NULL;
+#include <vector>
+#include <unordered_map>
+#include <dwmapi.h>
+#include <uxtheme.h>
+#include <commctrl.h>
 
 NOTIFYICONDATA nid = { 0 };
 

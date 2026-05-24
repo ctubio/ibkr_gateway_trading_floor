@@ -21,6 +21,19 @@ static const char* DIAMONDS_CLASS_NAME      = "TNTDiamondsWindowClass";
 static const char* TICKER_CLASS_NAME        = "TNTTickerWindowClass";
 static const char* TIMESALES_CLASS_NAME     = "TNTTimesalesWindowClass";
 
+// Dark mode colors
+#define DM_BG        RGB(32,  32,  32)
+#define DM_BG2       RGB(45,  45,  45)
+#define DM_TEXT      RGB(220, 220, 220)
+#define DM_BORDER    RGB(70,  70,  70)
+
+// Light mode colors  
+#define LM_BG        GetSysColor(COLOR_BTNFACE)
+#define LM_TEXT      GetSysColor(COLOR_WINDOWTEXT)
+
+HBRUSH hDarkBrush = NULL;
+HBRUSH hDarkBrush2 = NULL;
+
 void Settings_SaveString(const char* key, const std::string& value) {
     HKEY hKey;
     char fullPath[256];
@@ -92,11 +105,6 @@ bool Settings_DarkMode() {
     return Settings_Load("DarkMode", 0) != 0;
 }
 
-void ApplyDarkMode(HWND hWnd) {
-    BOOL dark = Settings_DarkMode() ? TRUE : FALSE;
-    DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark, sizeof(dark));
-}
-
 void SaveWinPosition(HWND hWnd) {
     WINDOWPLACEMENT wp;
     wp.length = sizeof(WINDOWPLACEMENT);
@@ -160,6 +168,116 @@ BOOL CALLBACK FindEnumWindowsProc(HWND hwnd, LPARAM lParam) {
     }
 
     return TRUE; // Continue enumerating
+}
+
+LRESULT CALLBACK ListViewSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+    if (msg == WM_NOTIFY) {
+        NMHDR* hdr = (NMHDR*)lParam;
+        
+        // The Header control sends paint messages (NM_CUSTOMDRAW) to its parent (the ListView)
+        if (hdr->code == NM_CUSTOMDRAW && hdr->hwndFrom == ListView_GetHeader(hWnd)) {
+            if (!Settings_DarkMode()) return DefSubclassProc(hWnd, msg, wParam, lParam);
+
+            NMCUSTOMDRAW* cd = (NMCUSTOMDRAW*)lParam;
+            switch (cd->dwDrawStage) {
+                case CDDS_PREPAINT: {
+                    // Paint the entire background first to cover the empty space on the far right
+                    RECT rcClient;
+                    GetClientRect(hdr->hwndFrom, &rcClient);
+                    FillRect(cd->hdc, &rcClient, hDarkBrush2);
+                    
+                    // Tell Windows we want to draw the individual columns next
+                    return CDRF_NOTIFYITEMDRAW; 
+                }
+                case CDDS_ITEMPREPAINT: {
+                    HDC hdc = cd->hdc;
+                    RECT rc = cd->rc;
+
+                    // 1. Draw border separators (Bottom and Right lines)
+                    HPEN hPen = CreatePen(PS_SOLID, 1, DM_BORDER);
+                    HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
+                    MoveToEx(hdc, rc.right - 1, rc.top, NULL);
+                    LineTo(hdc, rc.right - 1, rc.bottom);
+                    MoveToEx(hdc, rc.left, rc.bottom - 1, NULL);
+                    LineTo(hdc, rc.right, rc.bottom - 1);
+                    SelectObject(hdc, hOldPen);
+                    DeleteObject(hPen);
+
+                    // 2. Get the Column Text and its Alignment
+                    char text[128] = {0};
+                    HDITEMA hdi = {0};
+                    hdi.mask = HDI_TEXT | HDI_FORMAT;
+                    hdi.pszText = text;
+                    hdi.cchTextMax = sizeof(text);
+                    SendMessageA(hdr->hwndFrom, HDM_GETITEMA, cd->dwItemSpec, (LPARAM)&hdi);
+
+                    // 3. Draw the Text
+                    SetTextColor(hdc, DM_TEXT);
+                    SetBkMode(hdc, TRANSPARENT);
+                    
+                    UINT format = DT_VCENTER | DT_SINGLELINE;
+                    if (hdi.fmt & HDF_CENTER) { format |= DT_CENTER; }
+                    else if (hdi.fmt & HDF_RIGHT) { format |= DT_RIGHT; rc.right -= 6; }
+                    else { format |= DT_LEFT; rc.left += 6; } // Left pad slightly
+
+                    DrawTextA(hdc, text, -1, &rc, format);
+
+                    // Tell Windows to skip its default light-mode rendering
+                    return CDRF_SKIPDEFAULT; 
+                }
+            }
+        }
+    }
+    
+    // Clean up subclass on destroy
+    if (msg == WM_NCDESTROY) {
+        RemoveWindowSubclass(hWnd, ListViewSubclassProc, uIdSubclass);
+    }
+    
+    return DefSubclassProc(hWnd, msg, wParam, lParam);
+}
+
+// Applies dark theme to a specific SysListView32
+void ApplyDarkModeToLists(HWND hList, bool dark) {
+    // Safely attach our Custom Draw subclass (SetWindowSubclass ignores duplicate calls automatically)
+    SetWindowSubclass(hList, ListViewSubclassProc, 999, 0);
+
+    if (dark) {
+        // Theme scrollbars
+        SetWindowTheme(hList, L"DarkMode_Explorer", NULL);
+        
+        // Set listview background and text colors
+        ListView_SetBkColor(hList, DM_BG);
+        ListView_SetTextBkColor(hList, DM_BG);
+        ListView_SetTextColor(hList, DM_TEXT);
+    } else {
+        // Revert to default light mode themes
+        SetWindowTheme(hList, L"Explorer", NULL);
+        
+        ListView_SetBkColor(hList, GetSysColor(COLOR_WINDOW));
+        ListView_SetTextBkColor(hList, GetSysColor(COLOR_WINDOW));
+        ListView_SetTextColor(hList, GetSysColor(COLOR_WINDOWTEXT));
+    }
+}
+
+// Callback to find listviews and apply the theme
+BOOL CALLBACK EnumChildProcForLists(HWND hwnd, LPARAM lParam) {
+    char className[256];
+    if (GetClassNameA(hwnd, className, sizeof(className))) {
+        if (strcmp(className, "SysListView32") == 0) {
+            bool dark = (bool)lParam;
+            ApplyDarkModeToLists(hwnd, dark);
+        }
+    }
+    return TRUE;
+}
+
+void ApplyDarkMode(HWND hWnd) {
+    BOOL dark = Settings_DarkMode() ? TRUE : FALSE;
+    DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark, sizeof(dark));
+    
+    // Automatically find and theme any ListViews inside this window
+    EnumChildWindows(hWnd, EnumChildProcForLists, (LPARAM)dark);
 }
 
 void Session_AddWindow(HWND hWnd) {
