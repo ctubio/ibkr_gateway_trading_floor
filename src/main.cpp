@@ -39,15 +39,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
     INITCOMMONCONTROLSEX icex = { sizeof(icex), ICC_WIN95_CLASSES | ICC_LISTVIEW_CLASSES | ICC_TAB_CLASSES };
     InitCommonControlsEx(&icex);
 
-    nid.cbSize = sizeof(NOTIFYICONDATA);
-    nid.hWnd = g_AppWindows[DASHBOARD_CLASS_NAME];
-    nid.uID = 1;
-    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-    nid.uCallbackMessage = WM_TRAYICON;
-    nid.hIcon = offlineIcons[DASHBOARD_CLASS_NAME];
-    lstrcpy(nid.szTip, "Offline");
-    Shell_NotifyIcon(NIM_ADD, &nid);
-
     Session_RestoreWindows(
         startBook,    startCoins,    startDiamonds,
         startNews,    startSettings, startTimesales,

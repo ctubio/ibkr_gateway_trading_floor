@@ -50,6 +50,20 @@ BOOL CALLBACK IconsEnumWindowsProc(HWND hwnd, LPARAM lParam) {IconUpdateContext*
     return TRUE; // Continue reading
 }
 
+void BindTrayIcon(HWND hWnd) {
+    char className[256];
+    GetClassNameA(hWnd, className, sizeof(className));
+
+    nid.cbSize = sizeof(NOTIFYICONDATA);
+    nid.hWnd = hWnd;
+    nid.uID = 1;
+    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    nid.uCallbackMessage = WM_TRAYICON;
+    nid.hIcon = offlineIcons[className];
+    lstrcpy(nid.szTip, "Offline");
+    Shell_NotifyIcon(NIM_ADD, &nid);
+}
+
 void UpdateTrayIcon(HWND hWnd) {
     std::string tooltip;
     std::string title = "IBKR Gateway: ";
@@ -133,6 +147,8 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 
             api.addApiUpdateWindow(hWnd);
             api.setApiErrorWindow(hWnd);
+
+            BindTrayIcon(hWnd);
                     
             SetTimer(hWnd, TIMER_WATCHDOG, 10000, NULL);
             SendMessage(hWnd, WM_TIMER, TIMER_WATCHDOG, 0);

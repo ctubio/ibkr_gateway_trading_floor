@@ -206,7 +206,7 @@ static void News_Layout(HWND hWnd) {
 
 // ── News request ──────────────────────────────────────────────────────────────
 
-void News_RequestForSymbol(const std::string& fullEntry) {
+void News_RequestForSymbol(HWND hWnd, const std::string& fullEntry) {
     auto firstDot = fullEntry.find('.');
     if (firstDot == std::string::npos) return;
     std::string conIdStr = fullEntry.substr(0, firstDot);
@@ -217,8 +217,7 @@ void News_RequestForSymbol(const std::string& fullEntry) {
     Settings_SaveString("LastNewsEntry", fullEntry);
     LogDebug("News request for: " + symbol + " conId: " + conIdStr);
 
-    HWND newsWnd = g_AppWindows[NEWS_CLASS_NAME];
-    if (newsWnd) SetWindowTextA(newsWnd, ("News: " + symbol).c_str());
+    if (hWnd) SetWindowTextA(hWnd, ("News: " + symbol).c_str());
 
     if (hNewsResults) {
         int count = ListView_GetItemCount(hNewsResults);
@@ -292,7 +291,7 @@ LRESULT CALLBACK WndProcNews(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         if (News_LoadSymbolCombo(lastEntry)) {
             int sel = (int)SendMessage(hNewsSymCombo, CB_GETCURSEL, 0, 0);
             if (sel != CB_ERR && sel < (int)newsSymEntries.size())
-                News_RequestForSymbol(newsSymEntries[sel]);
+                News_RequestForSymbol(hWnd, newsSymEntries[sel]);
         }
 
         api.addApiUpdateWindow(hWnd);
@@ -319,12 +318,12 @@ LRESULT CALLBACK WndProcNews(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         if (LOWORD(wParam) == ID_NEWS_LIST_COMBO && HIWORD(wParam) == CBN_SELCHANGE) {
             Settings_SaveString("LastNewsList", News_GetSelectedList());
             News_LoadSymbolCombo();
-            if (!newsSymEntries.empty()) News_RequestForSymbol(newsSymEntries[0]);
+            if (!newsSymEntries.empty()) News_RequestForSymbol(hWnd, newsSymEntries[0]);
         }
         if (LOWORD(wParam) == ID_NEWS_SYM_COMBO && HIWORD(wParam) == CBN_SELCHANGE) {
             int sel = (int)SendMessage(hNewsSymCombo, CB_GETCURSEL, 0, 0);
             if (sel != CB_ERR && sel < (int)newsSymEntries.size())
-                News_RequestForSymbol(newsSymEntries[sel]);
+                News_RequestForSymbol(hWnd, newsSymEntries[sel]);
         }
         break;
 
@@ -413,7 +412,7 @@ LRESULT CALLBACK WndProcNews(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         if (api.isMarketDataConnected() && api.isTradingConnected()) {
             int sel = (int)SendMessage(hNewsSymCombo, CB_GETCURSEL, 0, 0);
             if (sel != CB_ERR && sel < (int)newsSymEntries.size())
-                News_RequestForSymbol(newsSymEntries[sel]);
+                News_RequestForSymbol(hWnd, newsSymEntries[sel]);
         } else {
             if (hNewsResults) {
                 int count = ListView_GetItemCount(hNewsResults);
