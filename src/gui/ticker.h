@@ -270,9 +270,7 @@ LRESULT CALLBACK WndProcTicker(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
                 SendMessageA(hTickerList, LVM_GETITEMA, 0, (LPARAM)&lvi);
                 auto* rd = reinterpret_cast<TickerRowData*>(lvi.lParam);
                 if (rd) {
-                    char msg[256];
-                    snprintf(msg, sizeof(msg), "conId: %d\nSymbol: %s", rd->conId, rd->symbol.c_str());
-                    MessageBoxA(hWnd, msg, "NM_DBLCLK", MB_OK);
+                    startTimesales(rd->symbol, rd->conId);
                 }
             }
         }

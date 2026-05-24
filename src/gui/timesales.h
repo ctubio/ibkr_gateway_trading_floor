@@ -1,32 +1,43 @@
 #pragma once
 
-void startTimesales() { startGenericWindow(TIMESALES_CLASS_NAME, "Time & Sales", L"IBKRGatewayClient.Timesales", 380, 500); }
+#include <map>
+#include <string>
+#include <vector>
 
-#define ID_TS_LIST_COMBO    6001
-#define ID_TS_SYM_COMBO     6002
+// Payload passed during HWND creation
+struct TsInitData { std::string symbol; int conId; };
+
+void startTimesalesSearch(); // Forward declaration
+void startTimesales(const std::string& symbol = "", int conId = 0);
+
 #define ID_TS_LIST          6003
 #define ID_TS_FILTER_CHECK  6004
 #define ID_TS_LIST_F100     6005
 #define ID_TS_LIST_F1000    6006
 
-static HWND hTsListCombo    = NULL;
-static HWND hTsSymCombo     = NULL;
-static HWND hTsList         = NULL;   // all ticks
-static HWND hTsListF100     = NULL;   // size >= 100
-static HWND hTsListF1000    = NULL;   // size >= 1000
-static HWND hTsFilterCheck  = NULL;
-static std::vector<std::string> tsSymEntries;
-static bool tsSelectorsVisible = false;
-static bool tsFilteredView     = false;
+// State mapped per-window to support infinite instances safely
+struct TsState {
+    HWND hTsList = NULL;
+    HWND hTsListF100 = NULL;
+    HWND hTsListF1000 = NULL;
+    HWND hTsFilterCheck = NULL;
+    bool tsFilteredView = false;
+    std::string symbol;
+    int conId = 0;
+};
+static std::map<HWND, TsState*> tsStates;
 
-static const int TS_COMBO_H    = 24;
-static const int TS_COMBO_GAP  = 8;
-static const int TS_CHECK_W    = 20;
-static const int TS_CHECK_GAP  = 6;
-static const int TS_SELECTOR_H = 8 + TS_COMBO_H + 8;
+static void UpdateTimesalesRegistry() {
+    std::vector<std::string> sessions;
+    for (const auto& pair : tsStates) {
+        if (pair.second && pair.second->conId != 0 && !pair.second->symbol.empty()) {
+            sessions.push_back(std::to_string(pair.second->conId) + "." + pair.second->symbol);
+        }
+    }
+    Settings_SaveTimesales(sessions);
+}
 
 // ── Column definitions ────────────────────────────────────────────────────────
-
 struct TsCol { const char* header; int width; int fmt; };
 static const TsCol tsCols[] = {
     { "Price",    60, LVCFMT_RIGHT },
@@ -36,56 +47,12 @@ static const TsCol tsCols[] = {
 };
 static const int TS_COL_COUNT = (int)(sizeof(tsCols) / sizeof(tsCols[0]));
 
-// ── Selector helpers ──────────────────────────────────────────────────────────
-
-static std::string Ts_GetSelectedList() {
-    int sel = (int)SendMessage(hTsListCombo, CB_GETCURSEL, 0, 0);
-    if (sel == CB_ERR) return "";
-    int len = (int)SendMessage(hTsListCombo, CB_GETLBTEXTLEN, sel, 0);
-    if (len <= 0) return "";
-    std::string name(len + 1, '\0');
-    SendMessageA(hTsListCombo, CB_GETLBTEXT, sel, (LPARAM)name.data());
-    name.resize(len);
-    return name;
-}
-
-static bool Ts_LoadListCombo(const std::string& savedList = "") {
-    SendMessage(hTsListCombo, CB_RESETCONTENT, 0, 0);
-    Book_LoadAllLists(hTsListCombo);
-    if ((int)SendMessage(hTsListCombo, CB_GETCOUNT, 0, 0) == 0) return false;
-    int idx = CB_ERR;
-    if (!savedList.empty())
-        idx = (int)SendMessageA(hTsListCombo, CB_FINDSTRINGEXACT, -1, (LPARAM)savedList.c_str());
-    SendMessage(hTsListCombo, CB_SETCURSEL, idx == CB_ERR ? 0 : idx, 0);
-    return true;
-}
-
-static bool Ts_LoadSymbolCombo(const std::string& savedEntry = "") {
-    SendMessage(hTsSymCombo, CB_RESETCONTENT, 0, 0);
-    tsSymEntries.clear();
-    std::string listName = Ts_GetSelectedList();
-    if (listName.empty()) return false;
-    for (const auto& full : Book_ReadListEntries(listName.c_str())) {
-        tsSymEntries.push_back(full);
-        SendMessageA(hTsSymCombo, CB_ADDSTRING, 0, (LPARAM)Book_DisplayLabel(full).c_str());
-    }
-    if (tsSymEntries.empty()) return false;
-    int idx = CB_ERR;
-    for (int i = 0; i < (int)tsSymEntries.size(); ++i)
-        if (tsSymEntries[i] == savedEntry) { idx = i; break; }
-    SendMessage(hTsSymCombo, CB_SETCURSEL, idx == CB_ERR ? 0 : idx, 0);
-    return true;
-}
-
 // ── ListView helpers ──────────────────────────────────────────────────────────
-
 static HWND Ts_CreateListView(HWND hParent, int id, HINSTANCE hInst) {
     HWND hList = CreateWindowExA(
         WS_EX_CLIENTEDGE, "SysListView32", "",
-        WS_CHILD | WS_BORDER |
-        LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER,
-        0, 0, 10, 10,
-        hParent, (HMENU)(intptr_t)id, hInst, NULL);
+        WS_CHILD | WS_BORDER | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER,
+        0, 0, 10, 10, hParent, (HMENU)(intptr_t)id, hInst, NULL);
 
     DWORD exStyle = LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER;
     if (Settings_DarkMode()) exStyle |= LVS_EX_GRIDLINES;
@@ -94,25 +61,16 @@ static HWND Ts_CreateListView(HWND hParent, int id, HINSTANCE hInst) {
     LVCOLUMNA lvc = {};
     lvc.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT;
     for (int i = 0; i < TS_COL_COUNT; ++i) {
-        lvc.cx      = tsCols[i].width;
-        lvc.pszText = (LPSTR)tsCols[i].header;
-        lvc.fmt     = tsCols[i].fmt;
+        lvc.cx = tsCols[i].width; lvc.pszText = (LPSTR)tsCols[i].header; lvc.fmt = tsCols[i].fmt;
         ListView_InsertColumn(hList, i, &lvc);
     }
     return hList;
 }
 
-// Insert one tick row at position 0 (newest first), cap at 500.
-static void Ts_InsertTick(HWND hList, double price, double size,
-                          const std::string& time, const std::string& exchange) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.2f", price);
-    LVITEMA lvi = {};
-    lvi.mask    = LVIF_TEXT;
-    lvi.iItem   = 0;
-    lvi.pszText = buf;
+static void Ts_InsertTick(HWND hList, double price, double size, const std::string& time, const std::string& exchange) {
+    char buf[32]; snprintf(buf, sizeof(buf), "%.2f", price);
+    LVITEMA lvi = {}; lvi.mask = LVIF_TEXT; lvi.iItem = 0; lvi.pszText = buf;
     ListView_InsertItem(hList, &lvi);
-
     snprintf(buf, sizeof(buf), "%.0f", size);
     ListView_SetItemText(hList, 0, 1, buf);
     ListView_SetItemText(hList, 0, 2, (LPSTR)time.c_str());
@@ -123,174 +81,204 @@ static void Ts_InsertTick(HWND hList, double price, double size,
 }
 
 // ── Layout ────────────────────────────────────────────────────────────────────
-
-static void Ts_Layout(HWND hWnd) {
-    if (!hTsList) return;
+static void Ts_Layout(HWND hWnd, TsState* state) {
+    if (!state || !state->hTsList) return;
     RECT rc; GetClientRect(hWnd, &rc);
-    const int m = 8;
-
-    int availH = tsSelectorsVisible ? rc.bottom - TS_SELECTOR_H : rc.bottom;
+    int availH = rc.bottom - 24; 
     int availW = rc.right;
-    int selectorY = rc.bottom - TS_SELECTOR_H;
 
-    // ── Lists fill from top down ──
-    if (tsFilteredView) {
-        int leftW  = availW / 2;
-        int rightW = availW - leftW;
-        int halfH  = availH / 2;
-
-        ShowWindow(hTsList,      SW_SHOW);
-        ShowWindow(hTsListF100,  SW_SHOW);
-        ShowWindow(hTsListF1000, SW_SHOW);
-
-        MoveWindow(hTsList,      0,     0,         leftW,  availH,         TRUE);
-        MoveWindow(hTsListF100,  leftW, 0,         rightW, halfH,          TRUE);
-        MoveWindow(hTsListF1000, leftW, halfH,     rightW, availH - halfH, TRUE);
+    if (state->tsFilteredView) {
+        int leftW = availW / 2; int rightW = availW - leftW; int halfH = availH / 2;
+        ShowWindow(state->hTsList, SW_SHOW); ShowWindow(state->hTsListF100, SW_SHOW); ShowWindow(state->hTsListF1000, SW_SHOW);
+        MoveWindow(state->hTsList, 0, 0, leftW, availH, TRUE);
+        MoveWindow(state->hTsListF100, leftW, 0, rightW, halfH, TRUE);
+        MoveWindow(state->hTsListF1000, leftW, halfH, rightW, availH - halfH, TRUE);
     } else {
-        ShowWindow(hTsListF100,  SW_HIDE);
-        ShowWindow(hTsListF1000, SW_HIDE);
-        ShowWindow(hTsList,      SW_SHOW);
-        MoveWindow(hTsList, 0, 0, availW, availH, TRUE);
+        ShowWindow(state->hTsListF100, SW_HIDE); ShowWindow(state->hTsListF1000, SW_HIDE); ShowWindow(state->hTsList, SW_SHOW);
+        MoveWindow(state->hTsList, 0, 0, availW, availH, TRUE);
     }
-
-    // ── Selector row sits at the bottom ──
-    if (tsSelectorsVisible) {
-        int totalComboW = rc.right - m * 2 - TS_COMBO_GAP - TS_CHECK_GAP - TS_CHECK_W;
-        int eachW = totalComboW / 2;
-        int comboY = selectorY + (TS_SELECTOR_H - TS_COMBO_H) / 2;
-
-        SetWindowPos(hTsListCombo,   NULL, m,                         comboY,
-                     eachW, 200, SWP_NOZORDER | SWP_NOACTIVATE);
-        SetWindowPos(hTsSymCombo,    NULL, m + eachW + TS_COMBO_GAP, comboY,
-                     eachW, 200, SWP_NOZORDER | SWP_NOACTIVATE);
-        SetWindowPos(hTsFilterCheck, NULL,
-                     rc.right - m - TS_CHECK_W,
-                     selectorY + (TS_SELECTOR_H - TS_CHECK_W) / 2,
-                     TS_CHECK_W, TS_CHECK_W,
-                     SWP_NOZORDER | SWP_NOACTIVATE);
-    }
+    SetWindowPos(state->hTsFilterCheck, NULL, 8, rc.bottom - 20, 100, 16, SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
-static void Ts_ShowSelectors(HWND hWnd, bool show) {
-    if (tsSelectorsVisible == show) return;
-    tsSelectorsVisible = show;
-    int sw = show ? SW_SHOW : SW_HIDE;
-    ShowWindow(hTsListCombo,   sw);
-    ShowWindow(hTsSymCombo,    sw);
-    ShowWindow(hTsFilterCheck, sw);
-    Ts_Layout(hWnd);
+// ── Search Popup Elements ─────────────────────────────────────────────────────
+static HWND hTsSearchEdit = NULL;
+static HWND hTsSearchList = NULL;
+static std::vector<std::string> tsSearchResults;
+
+LRESULT CALLBACK TsSearchEditSubclass(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+    if (msg == WM_KEYDOWN) {
+        bool vis = IsWindowVisible(hTsSearchList);
+        if (wParam == VK_DOWN && vis) {
+            int count = SendMessage(hTsSearchList, LB_GETCOUNT, 0, 0);
+            int sel = SendMessage(hTsSearchList, LB_GETCURSEL, 0, 0);
+            if (sel + 1 < count) SendMessage(hTsSearchList, LB_SETCURSEL, sel + 1, 0);
+            return 0;
+        }
+        if (wParam == VK_UP && vis) {
+            int sel = SendMessage(hTsSearchList, LB_GETCURSEL, 0, 0);
+            if (sel > 0) SendMessage(hTsSearchList, LB_SETCURSEL, sel - 1, 0);
+            return 0;
+        }
+        if (wParam == VK_RETURN && vis) {
+            int sel = SendMessage(hTsSearchList, LB_GETCURSEL, 0, 0);
+            if (sel != LB_ERR && sel < (int)tsSearchResults.size()) {
+                std::string r = tsSearchResults[sel];
+                auto dot = r.find('.');
+                if (dot != std::string::npos) {
+                    int cid = std::stoi(r.substr(0, dot));
+                    std::string rest = r.substr(dot + 1);
+                    auto d2 = rest.find('.');
+                    startTimesales((d2 != std::string::npos) ? rest.substr(0, d2) : rest, cid);
+                }
+                DestroyWindow(GetParent(hWnd));
+            }
+            return 0;
+        }
+        if (wParam == VK_ESCAPE) { DestroyWindow(GetParent(hWnd)); return 0; }
+    }
+    if (msg == WM_NCDESTROY) RemoveWindowSubclass(hWnd, TsSearchEditSubclass, uIdSubclass);
+    return DefSubclassProc(hWnd, msg, wParam, lParam);
 }
 
-// ── Subscribe ─────────────────────────────────────────────────────────────────
+LRESULT CALLBACK TsSearchListSubclass(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+    if (msg == WM_LBUTTONUP) {
+        int sel = SendMessage(hWnd, LB_GETCURSEL, 0, 0);
+        if (sel != LB_ERR && sel < (int)tsSearchResults.size()) {
+            std::string r = tsSearchResults[sel];
+            auto dot = r.find('.');
+            if (dot != std::string::npos) {
+                int cid = std::stoi(r.substr(0, dot));
+                std::string rest = r.substr(dot + 1);
+                auto d2 = rest.find('.');
+                startTimesales((d2 != std::string::npos) ? rest.substr(0, d2) : rest, cid);
+            }
+            DestroyWindow(GetParent(hWnd));
+        }
+    }
+    if (msg == WM_NCDESTROY) RemoveWindowSubclass(hWnd, TsSearchListSubclass, uIdSubclass);
+    return DefSubclassProc(hWnd, msg, wParam, lParam);
+}
 
-static void Ts_Subscribe(HWND hWnd, const std::string& fullEntry) {
-    auto firstDot = fullEntry.find('.');
-    if (firstDot == std::string::npos) return;
-    std::string conIdStr = fullEntry.substr(0, firstDot);
-    std::string rest     = fullEntry.substr(firstDot + 1);
-    auto secondDot       = rest.find('.');
-    std::string symbol   = (secondDot != std::string::npos) ? rest.substr(0, secondDot) : rest;
+LRESULT CALLBACK WndProcTsSearch(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    switch (message) {
+        case WM_CREATE: {
+            HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
+            CreateWindowA("STATIC", "Search Symbol:", WS_CHILD | WS_VISIBLE, 10, 10, 100, 20, hWnd, NULL, hInst, NULL);
+            hTsSearchEdit = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_UPPERCASE | ES_AUTOHSCROLL, 10, 30, 240, 24, hWnd, (HMENU)1, hInst, NULL);
+            SetWindowSubclass(hTsSearchEdit, TsSearchEditSubclass, 1, 0);
+            hTsSearchList = CreateWindowA("LISTBOX", "", WS_CHILD | WS_VISIBLE | WS_BORDER | LBS_NOTIFY, 10, 60, 240, 150, hWnd, (HMENU)2, hInst, NULL);
+            SetWindowSubclass(hTsSearchList, TsSearchListSubclass, 2, 0);
+            SetFocus(hTsSearchEdit);
+            api.setSymbolSearchWindow(hWnd);
+            break;
+        }
+        case WM_COMMAND:
+            if (LOWORD(wParam) == 1 && HIWORD(wParam) == EN_CHANGE) {
+                char t[256] = {}; GetWindowTextA(hTsSearchEdit, t, sizeof(t));
+                if (strlen(t) > 0) api.searchSymbols(t);
+                else { SendMessage(hTsSearchList, LB_RESETCONTENT, 0, 0); tsSearchResults.clear(); }
+            }
+            break;
+        case WM_SYMBOL_RESULTS: {
+            tsSearchResults = api.getSymbolResults();
+            SendMessage(hTsSearchList, LB_RESETCONTENT, 0, 0);
+            for (const auto& r : tsSearchResults) {
+                auto d = r.find('.');
+                std::string disp = (d != std::string::npos) ? r.substr(d + 1) : r;
+                SendMessageA(hTsSearchList, LB_ADDSTRING, 0, (LPARAM)disp.c_str());
+            }
+            break;
+        }
+        case WM_DESTROY: api.setSymbolSearchWindow(NULL); break;
+    }
+    return HandleCommonMessages(hWnd, message, wParam, lParam);
+}
 
-    Settings_SaveString("LastTsList",  Ts_GetSelectedList());
-    Settings_SaveString("LastTsEntry", fullEntry);
+void startTimesalesSearch() {
+    static bool registered = false;
+    if (!registered) {
+        WNDCLASS wc = { 0 };
+        wc.lpfnWndProc = WndProcTsSearch;
+        wc.hInstance = GetModuleHandle(NULL);
+        wc.lpszClassName = "TNTTsSearchWindowClass";
+        wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+        RegisterClass(&wc);
+        registered = true;
+    }
+    HWND hWnd = CreateWindowExA(WS_EX_DLGMODALFRAME | WS_EX_TOPMOST, "TNTTsSearchWindowClass", "Time & Sales - Search", 
+        WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE, 
+        (GetSystemMetrics(SM_CXSCREEN) - 260) / 2, (GetSystemMetrics(SM_CYSCREEN) - 240) / 2, 275, 260, 
+        NULL, NULL, GetModuleHandle(NULL), NULL);
+    ApplyDarkMode(hWnd);
+}
 
-    ListView_DeleteAllItems(hTsList);
-    if (hTsListF100)  ListView_DeleteAllItems(hTsListF100);
-    if (hTsListF1000) ListView_DeleteAllItems(hTsListF1000);
-    SetWindowTextA(hWnd, ("Time & Sales: " + symbol).c_str());
-
-    api.setTimesalesWindow(hWnd, std::stoi(conIdStr), symbol);
+void startTimesales(const std::string& symbol, int conId) {
+    if (symbol.empty() || conId == 0) {
+        startTimesalesSearch();
+        return;
+    }
+    std::string key = TIMESALES_CLASS_NAME + std::string("_") + std::to_string(conId);
+    TsInitData* data = new TsInitData{symbol, conId};
+    startGenericWindow(TIMESALES_CLASS_NAME, ("Time & Sales: " + symbol).c_str(), L"IBKRGatewayClient.Timesales", 380, 500, NULL, key, data);
 }
 
 // ── Window procedure ──────────────────────────────────────────────────────────
-
 LRESULT CALLBACK WndProcTimesales(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-    switch (message) {
+    TsState* state = nullptr;
+    if (message != WM_CREATE) {
+        auto it = tsStates.find(hWnd);
+        if (it != tsStates.end()) state = it->second;
+    }
 
+    switch (message) {
     case WM_CREATE: {
         HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
-        const int m = 8;
-
-        // Lists created FIRST so they sit behind the selectors in Z-order.
-        hTsList      = Ts_CreateListView(hWnd, ID_TS_LIST,      hInst);
-        hTsListF100  = Ts_CreateListView(hWnd, ID_TS_LIST_F100,  hInst);
-        hTsListF1000 = Ts_CreateListView(hWnd, ID_TS_LIST_F1000, hInst);
-        ShowWindow(hTsList, SW_SHOW);
-
-        // Selectors created AFTER lists — higher Z-order, rendered on top.
-        hTsListCombo = CreateWindowA("COMBOBOX", NULL,
-            WS_CHILD | WS_VSCROLL | CBS_DROPDOWNLIST,
-            m, m, 180, 200,
-            hWnd, (HMENU)ID_TS_LIST_COMBO, hInst, NULL);
-
-        hTsSymCombo = CreateWindowA("COMBOBOX", NULL,
-            WS_CHILD | WS_VSCROLL | CBS_DROPDOWNLIST,
-            m + 180 + TS_COMBO_GAP, m, 180, 200,
-            hWnd, (HMENU)ID_TS_SYM_COMBO, hInst, NULL);
-
-        hTsFilterCheck = CreateWindowA("BUTTON", "",
-            WS_CHILD | BS_AUTOCHECKBOX,
-            0, 0, TS_CHECK_W, TS_CHECK_W,
-            hWnd, (HMENU)ID_TS_FILTER_CHECK, hInst, NULL);
-
-        // Restore last session
-        std::string lastList  = Settings_LoadString("LastTsList");
-        std::string lastEntry = Settings_LoadString("LastTsEntry");
-        Ts_LoadListCombo(lastList);
-        if (Ts_LoadSymbolCombo(lastEntry)) {
-            int sel = (int)SendMessage(hTsSymCombo, CB_GETCURSEL, 0, 0);
-            if (sel != CB_ERR && sel < (int)tsSymEntries.size())
-                Ts_Subscribe(hWnd, tsSymEntries[sel]);
+        TsInitData* data = (TsInitData*)(((LPCREATESTRUCT)lParam)->lpCreateParams);
+        state = new TsState();
+        if (data) {
+            state->symbol = data->symbol;
+            state->conId = data->conId;
+            delete data;
         }
+        tsStates[hWnd] = state;
 
+        state->hTsList      = Ts_CreateListView(hWnd, ID_TS_LIST,      hInst);
+        state->hTsListF100  = Ts_CreateListView(hWnd, ID_TS_LIST_F100,  hInst);
+        state->hTsListF1000 = Ts_CreateListView(hWnd, ID_TS_LIST_F1000, hInst);
+        ShowWindow(state->hTsList, SW_SHOW);
+
+        state->hTsFilterCheck = CreateWindowA("BUTTON", "Filter Size", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 0, 0, 100, 16, hWnd, (HMENU)ID_TS_FILTER_CHECK, hInst, NULL);
+        
+        api.setTimesalesWindow(hWnd, state->conId, state->symbol);
         api.addApiUpdateWindow(hWnd);
+        UpdateTimesalesRegistry(); // Ensure registry is immediately aware of this new instance
         break;
     }
 
     case WM_SIZE:
-        Ts_Layout(hWnd);
-        return 0;
-
-    case WM_ACTIVATE:
-        Ts_ShowSelectors(hWnd, LOWORD(wParam) != WA_INACTIVE);
+        Ts_Layout(hWnd, state);
         return 0;
 
     case WM_COMMAND:
-        if (LOWORD(wParam) == ID_TS_LIST_COMBO && HIWORD(wParam) == CBN_SELCHANGE) {
-            Settings_SaveString("LastTsList", Ts_GetSelectedList());
-            Ts_LoadSymbolCombo();
-            if (!tsSymEntries.empty()) Ts_Subscribe(hWnd, tsSymEntries[0]);
-        }
-        if (LOWORD(wParam) == ID_TS_SYM_COMBO && HIWORD(wParam) == CBN_SELCHANGE) {
-            int sel = (int)SendMessage(hTsSymCombo, CB_GETCURSEL, 0, 0);
-            if (sel != CB_ERR && sel < (int)tsSymEntries.size())
-                Ts_Subscribe(hWnd, tsSymEntries[sel]);
-        }
-        if (LOWORD(wParam) == ID_TS_FILTER_CHECK && HIWORD(wParam) == BN_CLICKED) {
-            HWND hChk = GetDlgItem(hWnd, ID_TS_FILTER_CHECK);
-            tsFilteredView = (SendMessage(hChk, BM_GETCHECK, 0, 0) == BST_CHECKED);
-            Settings_Save("TsFilteredView", tsFilteredView ? 1 : 0);
-            // Clear filtered lists when toggling on — they'll fill from live ticks
-            if (tsFilteredView) {
-                ListView_DeleteAllItems(hTsListF100);
-                ListView_DeleteAllItems(hTsListF1000);
+        if (LOWORD(wParam) == ID_TS_FILTER_CHECK && HIWORD(wParam) == BN_CLICKED && state) {
+            state->tsFilteredView = (SendMessage(state->hTsFilterCheck, BM_GETCHECK, 0, 0) == BST_CHECKED);
+            if (state->tsFilteredView) {
+                ListView_DeleteAllItems(state->hTsListF100); ListView_DeleteAllItems(state->hTsListF1000);
             }
-            Ts_Layout(hWnd);
+            Ts_Layout(hWnd, state);
         }
         break;
 
     case WM_TIMESALES_TICK: {
         auto* tick = reinterpret_cast<TradingAPI::TsTickEntry*>(lParam);
-
-        Ts_InsertTick(hTsList, tick->price, tick->size, tick->time, tick->exchange);
-
-        if (tsFilteredView) {
-            if (tick->size >= 100.0)
-                Ts_InsertTick(hTsListF100, tick->price, tick->size, tick->time, tick->exchange);
-            if (tick->size >= 1000.0)
-                Ts_InsertTick(hTsListF1000, tick->price, tick->size, tick->time, tick->exchange);
+        if (state) {
+            Ts_InsertTick(state->hTsList, tick->price, tick->size, tick->time, tick->exchange);
+            if (state->tsFilteredView) {
+                if (tick->size >= 100.0) Ts_InsertTick(state->hTsListF100, tick->price, tick->size, tick->time, tick->exchange);
+                if (tick->size >= 1000.0) Ts_InsertTick(state->hTsListF1000, tick->price, tick->size, tick->time, tick->exchange);
+            }
         }
-
         delete tick;
         break;
     }
@@ -298,10 +286,7 @@ LRESULT CALLBACK WndProcTimesales(HWND hWnd, UINT message, WPARAM wParam, LPARAM
     case WM_NOTIFY: {
         NMHDR* hdr = (NMHDR*)lParam;
         if (hdr->code != NM_CUSTOMDRAW) break;
-        if (hdr->idFrom != ID_TS_LIST &&
-            hdr->idFrom != ID_TS_LIST_F100 &&
-            hdr->idFrom != ID_TS_LIST_F1000) break;
-
+        if (hdr->idFrom != ID_TS_LIST && hdr->idFrom != ID_TS_LIST_F100 && hdr->idFrom != ID_TS_LIST_F1000) break;
         NMLVCUSTOMDRAW* cd = (NMLVCUSTOMDRAW*)lParam;
         if (!Settings_DarkMode()) break;
         switch (cd->nmcd.dwDrawStage) {
@@ -315,31 +300,24 @@ LRESULT CALLBACK WndProcTimesales(HWND hWnd, UINT message, WPARAM wParam, LPARAM
     }
 
     case WM_API_UPDATE: {
-        if (api.isMarketDataConnected() && api.isTradingConnected()) {
-            // Refresh current subscription to update with any new lists/symbols
-            int sel = (int)SendMessage(hTsSymCombo, CB_GETCURSEL, 0, 0);
-            if (sel != CB_ERR && sel < (int)tsSymEntries.size())
-                Ts_Subscribe(hWnd, tsSymEntries[sel]);
-        } else {
-            ListView_DeleteAllItems(hTsList);
-            if (hTsListF100)  ListView_DeleteAllItems(hTsListF100);
-            if (hTsListF1000) ListView_DeleteAllItems(hTsListF1000);
+        if (state) {
+            if (api.isMarketDataConnected() && api.isTradingConnected()) {
+                api.setTimesalesWindow(hWnd, state->conId, state->symbol);
+            } else {
+                ListView_DeleteAllItems(state->hTsList);
+                if (state->hTsListF100)  ListView_DeleteAllItems(state->hTsListF100);
+                if (state->hTsListF1000) ListView_DeleteAllItems(state->hTsListF1000);
+            }
         }
         break;
     }
 
     case WM_DESTROY:
-        api.unsetTimesalesWindow();
-        hTsListCombo  = NULL;
-        hTsSymCombo   = NULL;
-        hTsList       = NULL;
-        hTsListF100   = NULL;
-        hTsListF1000  = NULL;
-        hTsFilterCheck = NULL;
-        tsSymEntries.clear();
+        api.unsetTimesalesWindow(hWnd);
         api.removeApiUpdateWindow(hWnd);
+        if (state) { delete state; tsStates.erase(hWnd); }
+        UpdateTimesalesRegistry(); // Ensure registry forgets this instance immediately
         break;
     }
-
     return HandleCommonMessages(hWnd, message, wParam, lParam);
 }

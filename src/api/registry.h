@@ -2,6 +2,8 @@
 
 #include <dwmapi.h>
 #include <functional>
+#include <vector>
+#include <string>
 
 constexpr const char* APP_REG_ROOT = "Software\\ibkr-gateway-trading-floor";
 
@@ -35,7 +37,7 @@ std::string Settings_LoadString(const char* key, const std::string& defaultValue
     char fullPath[256];
     wsprintf(fullPath, "%s\\Settings", APP_REG_ROOT);
     if (RegOpenKeyExA(HKEY_CURRENT_USER, fullPath, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        char buf[512] = {};
+        char buf[2048] = {}; // Increased buffer to handle many saved windows
         DWORD size = sizeof(buf);
         if (RegQueryValueExA(hKey, key, NULL, NULL, (LPBYTE)buf, &size) == ERROR_SUCCESS) {
             RegCloseKey(hKey);
@@ -44,6 +46,15 @@ std::string Settings_LoadString(const char* key, const std::string& defaultValue
         RegCloseKey(hKey);
     }
     return defaultValue;
+}
+
+void Settings_SaveTimesales(const std::vector<std::string>& sessions) {
+    std::string combined;
+    for (size_t i = 0; i < sessions.size(); ++i) {
+        if (i > 0) combined += " ";
+        combined += sessions[i];
+    }
+    Settings_SaveString("OpenTimesales", combined);
 }
 
 void Settings_Save(const char* key, DWORD value) {
@@ -91,14 +102,10 @@ void SaveWinPosition(HWND hWnd) {
     wp.length = sizeof(WINDOWPLACEMENT);
     GetWindowPlacement(hWnd, &wp);
 
-    // wp.rcNormalPosition is the coordinates when NOT minimized/maximized
     DWORD x = (DWORD)wp.rcNormalPosition.left;
     DWORD y = (DWORD)wp.rcNormalPosition.top;
     DWORD w = (DWORD)(wp.rcNormalPosition.right - wp.rcNormalPosition.left);
     DWORD h = (DWORD)(wp.rcNormalPosition.bottom - wp.rcNormalPosition.top);
-
-    // If the window is currently minimized, we want to save the 'normal' coords
-    // instead of the -32000 values.
     
     HKEY hKey;
     char className[256] = {};
@@ -133,13 +140,34 @@ bool LoadWinPosition(const char* subKeyName, int &x, int &y, int &w, int &h) {
     }
     return false;
 }
+struct EnumContext {
+    HWND targetHwnd;
+    const char* targetClassName;
+    bool foundOther;
+};
+
+BOOL CALLBACK FindEnumWindowsProc(HWND hwnd, LPARAM lParam) {
+    EnumContext* ctx = (EnumContext*)lParam;
+
+    if (hwnd == ctx->targetHwnd) return TRUE;
+
+    char className[256];
+    GetClassNameA(hwnd, className, sizeof(className));
+
+    if (strcmp(className, ctx->targetClassName) == 0 && IsWindowVisible(hwnd)) {
+        ctx->foundOther = true;
+        return FALSE; // Stop enumerating, we found what we needed
+    }
+
+    return TRUE; // Continue enumerating
+}
 
 void Session_AddWindow(HWND hWnd) {
     ApplyDarkMode(hWnd);
 
     char className[256] = {};
     GetClassNameA(hWnd, className, sizeof(className));
-    // Load existing list
+    
     HKEY hKey;
     char fullPath[256];
     wsprintf(fullPath, "%s\\Settings", APP_REG_ROOT);
@@ -163,7 +191,6 @@ void Session_AddWindow(HWND hWnd) {
 
     windows.push_back(className);
 
-    // Save back
     std::string multiStr;
     for (const auto& w : windows) { multiStr += w; multiStr += '\0'; }
     multiStr += '\0';
@@ -178,6 +205,10 @@ void Session_AddWindow(HWND hWnd) {
 void Session_RemoveWindow(HWND hWnd) {
     char className[256] = {};
     GetClassNameA(hWnd, className, sizeof(className));
+    
+    EnumContext ctx = { hWnd, className, false };
+    EnumWindows(FindEnumWindowsProc, (LPARAM)&ctx);
+    if (ctx.foundOther) return;
     
     HKEY hKey;
     char fullPath[256];
@@ -217,7 +248,7 @@ void Session_RestoreWindows(
     const std::function<void()>& startDiamonds,
     const std::function<void()>& startNews,
     const std::function<void()>& startSettings,
-    const std::function<void()>& startTimesales,
+    const std::function<void(const std::string&, int)>& startTimesales,
     const std::function<void()>& startLevels,
     const std::function<void()>& startTicker,
     const std::function<void()>& startOrders,
@@ -244,11 +275,30 @@ void Session_RestoreWindows(
         else if (cls == DIAMONDS_CLASS_NAME)  startDiamonds();
         else if (cls == NEWS_CLASS_NAME)      startNews();
         else if (cls == SETTINGS_CLASS_NAME)  startSettings();
-        else if (cls == TIMESALES_CLASS_NAME) startTimesales();
         else if (cls == LEVELS_CLASS_NAME)    startLevels();
         else if (cls == TICKER_CLASS_NAME)    startTicker();
         else if (cls == ORDERS_CLASS_NAME)    startOrders();
         else if (cls == DEBUGLOG_CLASS_NAME)  startDebugLog();
+        else if (cls == TIMESALES_CLASS_NAME) {
+            std::string tsSaved = Settings_LoadString("OpenTimesales");
+            if (tsSaved.empty()) {
+                startTimesales("", 0);
+            } else {
+                size_t start = 0;
+                while (start < tsSaved.length()) {
+                    size_t end = tsSaved.find(' ', start);
+                    if (end == std::string::npos) end = tsSaved.length();
+                    std::string token = tsSaved.substr(start, end - start);
+                    auto dot = token.find('.');
+                    if (dot != std::string::npos) {
+                        int cid = std::stoi(token.substr(0, dot));
+                        std::string sym = token.substr(dot + 1);
+                        startTimesales(sym, cid);
+                    }
+                    start = end + 1;
+                }
+            }
+        }
         p += strlen(p) + 1;
     }
 }

@@ -6,10 +6,10 @@
 
 #include "gui/settings.h"
 #include "gui/book.h"
+#include "gui/timesales.h"
 #include "gui/diamonds.h"
 #include "gui/coins.h"
 #include "gui/news.h"
-#include "gui/timesales.h"
 #include "gui/levels.h"
 #include "gui/orders.h"
 #include "gui/ticker.h"

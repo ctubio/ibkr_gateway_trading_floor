@@ -146,7 +146,7 @@ public:
     // ── Time and Sales ────────────────────────────────────────────────────────
 
     void setTimesalesWindow(HWND hWnd, int conId, const std::string& symbol);
-    void unsetTimesalesWindow();
+    void unsetTimesalesWindow(HWND hWnd);
 
     // ── Ticker ────────────────────────────────────────────────────────
 

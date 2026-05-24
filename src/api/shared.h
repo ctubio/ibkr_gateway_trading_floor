@@ -1,3 +1,4 @@
+// shared.h
 #pragma once
 
 #include <cstring>
@@ -40,8 +41,10 @@ void SetWindowTaskbarId(HWND hWnd, const wchar_t* id) {
     }
 }
 
-void startGenericWindow(const char* className, const char* title, const wchar_t* taskbarId, int defaultW, int defaultH, HINSTANCE hInst = NULL) {
-    HWND& hWnd = g_AppWindows[className];
+// Updated startGenericWindow to handle multiple instances and lpParam payloads
+void startGenericWindow(const char* className, const char* title, const wchar_t* taskbarId, int defaultW, int defaultH, HINSTANCE hInst = NULL, const std::string& windowKey = "", LPVOID lpParam = NULL) {
+    std::string mapKey = windowKey.empty() ? className : windowKey;
+    HWND& hWnd = g_AppWindows[mapKey];
     
     if (hWnd && IsWindow(hWnd)) {
         if (IsIconic(hWnd)) { 
@@ -62,7 +65,7 @@ void startGenericWindow(const char* className, const char* title, const wchar_t*
     LoadWinPosition(className, x, y, w, h);
     
     if (hInst) {
-        hWnd = CreateWindow(className, title, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, x, y, w, h, NULL, NULL, hInst, NULL);
+        hWnd = CreateWindow(className, title, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, x, y, w, h, NULL, NULL, hInst, lpParam);
         ShowWindow(hWnd, SW_SHOW);
         UpdateWindow(hWnd);
     } else {
@@ -92,7 +95,7 @@ void startGenericWindow(const char* className, const char* title, const wchar_t*
             dwStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
             hWndParent = g_AppWindows[NEWS_CLASS_NAME];
         }
-        hWnd = CreateWindowExA(dwExStyle, className, title, dwStyle, x, y, w, h, hWndParent, NULL, GetModuleHandle(NULL), NULL);   
+        hWnd = CreateWindowExA(dwExStyle, className, title, dwStyle, x, y, w, h, hWndParent, NULL, GetModuleHandle(NULL), lpParam);   
     }
     
     if (strcmp(className, BOOK_NEW_LIST_CLASS_NAME) != 0)
@@ -114,7 +117,6 @@ HICON CreateGrayIcon(HICON hOriginal) {
 
     DrawIconEx(hdcMem, 0, 0, hOriginal, bm.bmWidth, bm.bmHeight, 0, NULL, DI_NORMAL);
 
-    // Blend to gray
     BITMAPINFO bmi = {};
     bmi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
     bmi.bmiHeader.biWidth       = bm.bmWidth;
@@ -132,7 +134,6 @@ HICON CreateGrayIcon(HICON hOriginal) {
         BYTE b =  px        & 0xFF;
         BYTE a = (px >> 24) & 0xFF;
         BYTE gray = (BYTE)(0.299f * r + 0.587f * g + 0.114f * b);
-        // Reduce opacity too so it looks "disabled"
         px = ((a / 2) << 24) | (gray << 16) | (gray << 8) | gray;
     }
 
@@ -172,8 +173,6 @@ void registerWindowClass(HINSTANCE hInst, WNDPROC WndProc, const char* className
     wc.hIcon = onlineIcon;
     RegisterClass(&wc);
 }
-
-// ─── Window Session ───────────────────────────────────────────────────────────
 
 LRESULT HandleDarkModeMessages(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
@@ -219,8 +218,7 @@ LRESULT HandleDarkModeMessages(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
             HPEN hPen = CreatePen(PS_SOLID, 1, borderColor);
             HPEN hOld = (HPEN)SelectObject(dis->hDC, hPen);
             SelectObject(dis->hDC, GetStockObject(NULL_BRUSH));
-            Rectangle(dis->hDC, dis->rcItem.left, dis->rcItem.top,
-                    dis->rcItem.right, dis->rcItem.bottom);
+            Rectangle(dis->hDC, dis->rcItem.left, dis->rcItem.top, dis->rcItem.right, dis->rcItem.bottom);
             SelectObject(dis->hDC, hOld);
             DeleteObject(hPen);
             wchar_t text[128] = {};
@@ -228,14 +226,12 @@ LRESULT HandleDarkModeMessages(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
             SetTextColor(dis->hDC, textColor);
             SetBkMode(dis->hDC, TRANSPARENT);
             DrawTextW(dis->hDC, text, -1, &dis->rcItem, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-            if (dis->itemState & ODS_FOCUS)
-                DrawFocusRect(dis->hDC, &dis->rcItem);
+            if (dis->itemState & ODS_FOCUS) DrawFocusRect(dis->hDC, &dis->rcItem);
             return TRUE;
         }
     }
     return 0;
 }
-
 
 LRESULT HandleCommonMessages(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     char className[256] = {};
@@ -269,7 +265,11 @@ LRESULT HandleCommonMessages(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                 PostQuitMessage(0);
             } else {
                 Session_RemoveWindow(hWnd);
-                g_AppWindows[className] = NULL;
+                // Erase exact HWND from the map to support multi-instance unregistering cleanly
+                for (auto it = g_AppWindows.begin(); it != g_AppWindows.end(); ) {
+                    if (it->second == hWnd) it = g_AppWindows.erase(it);
+                    else ++it;
+                }
             }
             return 0;
         default: {
@@ -282,37 +282,30 @@ LRESULT HandleCommonMessages(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 }
 
 #include <tlhelp32.h>
-
 bool IsProcessRunning(const char* processName) {
     HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hSnap == INVALID_HANDLE_VALUE) return false;
-
     PROCESSENTRY32 pe = { sizeof(PROCESSENTRY32) };
     bool found = false;
-
     if (Process32First(hSnap, &pe)) {
         do {
             if (_stricmp(pe.szExeFile, processName) == 0) {
-                found = true;
-                break;
+                found = true; break;
             }
         } while (Process32Next(hSnap, &pe));
     }
-
     CloseHandle(hSnap);
     return found;
 }
 
 std::string GetGatewayPath() {
-    // 1. Try registry first
     HKEY hKey;
     char fullPath[256];
     wsprintf(fullPath, "%s\\Settings", APP_REG_ROOT);
     if (RegOpenKeyExA(HKEY_CURRENT_USER, fullPath, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
         char path[MAX_PATH] = {};
         DWORD size = sizeof(path);
-        if (RegQueryValueExA(hKey, "GatewayPath", NULL, NULL,
-            (LPBYTE)path, &size) == ERROR_SUCCESS && strlen(path) > 0) {
+        if (RegQueryValueExA(hKey, "GatewayPath", NULL, NULL, (LPBYTE)path, &size) == ERROR_SUCCESS && strlen(path) > 0) {
             RegCloseKey(hKey);
             return std::string(path);
         }
@@ -326,8 +319,7 @@ void SaveGatewayPath(const std::string& path) {
     char fullPath[256];
     wsprintf(fullPath, "%s\\Settings", APP_REG_ROOT);
     if (RegCreateKeyExA(HKEY_CURRENT_USER, fullPath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
-        RegSetValueExA(hKey, "GatewayPath", 0, REG_SZ,
-            (const BYTE*)path.c_str(), (DWORD)path.size() + 1);
+        RegSetValueExA(hKey, "GatewayPath", 0, REG_SZ, (const BYTE*)path.c_str(), (DWORD)path.size() + 1);
         RegCloseKey(hKey);
     }
 }
@@ -335,7 +327,6 @@ void SaveGatewayPath(const std::string& path) {
 std::string AskGatewayPath(HWND hParent) {
     OPENFILENAMEA ofn = {};
     char path[MAX_PATH] = "ibgateway.exe";
-
     ofn.lStructSize     = sizeof(ofn);
     ofn.hwndOwner       = hParent;
     ofn.lpstrFilter     = "Executable\0*.exe\0All Files\0*.*\0";
@@ -344,21 +335,15 @@ std::string AskGatewayPath(HWND hParent) {
     ofn.lpstrTitle      = "Locate ibgateway.exe";
     ofn.lpstrInitialDir = "C:\\Program Files\\IBKR";
     ofn.Flags           = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-
-    if (GetOpenFileNameA(&ofn))
-        return std::string(path);
-
+    if (GetOpenFileNameA(&ofn)) return std::string(path);
     return "";
 }
+
 bool alreadyEnsureGatewayRunning = false;
 void EnsureGatewayRunning(HWND hParent) {
     if (alreadyEnsureGatewayRunning || !Settings_AutoGateway() || IsProcessRunning("ibgateway.exe")) return;
     alreadyEnsureGatewayRunning = true;
-
-    // Get path from registry or default
     std::string path = GetGatewayPath();
-
-    // Check default location if registry is empty
     if (path.empty()) {
         const char* defaultPath = "C:\\whatever\\ibgateway.exe";
         if (GetFileAttributesA(defaultPath) != INVALID_FILE_ATTRIBUTES) {
@@ -366,19 +351,13 @@ void EnsureGatewayRunning(HWND hParent) {
             SaveGatewayPath(path);
         }
     }
-
-    // If path from registry doesn't exist anymore, ask user
     if (path.empty() || GetFileAttributesA(path.c_str()) == INVALID_FILE_ATTRIBUTES) {
-        MessageBoxA(hParent,
-            "IB Gateway not found. Please locate ibgateway.exe.",
-            "Gateway Not Found", MB_OK | MB_ICONINFORMATION);
+        MessageBoxA(hParent, "IB Gateway not found. Please locate ibgateway.exe.", "Gateway Not Found", MB_OK | MB_ICONINFORMATION);
         path = AskGatewayPath(hParent);
-        if (path.empty()) return; // user cancelled
+        if (path.empty()) return; 
         SaveGatewayPath(path);
     }
-
     alreadyEnsureGatewayRunning = false;
-
     LogDebug("Running IBKR Gateway, please login..");
     ShellExecuteA(NULL, "open", path.c_str(), NULL, NULL, SW_SHOW);
 }
@@ -386,13 +365,9 @@ void EnsureGatewayRunning(HWND hParent) {
 #include <filesystem>
 void KillGateway() {
     std::string path = GetGatewayPath();
-    if (path.empty()) {
-        path = "C:\\whatever\\ibgateway.exe";
-    }
-
+    if (path.empty()) path = "C:\\whatever\\ibgateway.exe";
     HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hSnap == INVALID_HANDLE_VALUE) return;
-
     PROCESSENTRY32 pe = { sizeof(PROCESSENTRY32) };
     if (Process32First(hSnap, &pe)) {
         do {

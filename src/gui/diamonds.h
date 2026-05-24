@@ -127,36 +127,19 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
     case WM_NOTIFY: {
         NMHDR* hdr = (NMHDR*)lParam;
         if (hdr->idFrom != ID_DIAMONDS_RESULTS_LIST) break;
-        if (hdr->code == NM_DBLCLK) {
+        if (hdr->code == NM_DBLCLK || hdr->code == NM_RCLICK) {
             LPNMITEMACTIVATE act = (LPNMITEMACTIVATE)lParam;
             int row = act->iItem;
             if (row != -1) {
                 char text[256];
                 ListView_GetItemText(hDiamondsResults, row, 0, text, sizeof(text));
-                char msg[512];
                 LVITEMA item{};
                 item.mask = LVIF_PARAM;
                 item.iItem = row;
                 ListView_GetItem(hDiamondsResults, &item);
                 int conId = (int)item.lParam;
-                snprintf(msg, sizeof(msg), "conId: %d\nSymbol: %s", conId, text);
-                MessageBoxA(hWnd, msg, "NM_DBLCLK", MB_OK);
-            }
-        }
-        if (hdr->code == NM_RCLICK) {
-            LPNMITEMACTIVATE act = (LPNMITEMACTIVATE)lParam;
-            int row = act->iItem;
-            if (row != -1) {
-                char text[256];
-                ListView_GetItemText(hDiamondsResults, row, 0, text, sizeof(text));
-                char msg[512];
-                LVITEMA item{};
-                item.mask = LVIF_PARAM;
-                item.iItem = row;
-                ListView_GetItem(hDiamondsResults, &item);
-                int conId = (int)item.lParam;
-                snprintf(msg, sizeof(msg), "conId: %d\nSymbol: %s", conId, text);
-                MessageBoxA(hWnd, msg, "NM_RCLICK", MB_OK);
+                
+                startTimesales(text, conId); // Spawn multi-instance immediately
             }
         }
         if (hdr->code == NM_CUSTOMDRAW) {

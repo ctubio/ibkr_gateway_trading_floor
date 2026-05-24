@@ -22,6 +22,34 @@ void startDashboard(HINSTANCE hInst) { startGenericWindow(DASHBOARD_CLASS_NAME, 
 
 bool shouldBeConnected = true;
 
+struct IconUpdateContext {
+    bool connected;
+    const std::unordered_map<std::string, HICON>& onlineIcons;
+    const std::unordered_map<std::string, HICON>& offlineIcons;
+};
+
+BOOL CALLBACK IconsEnumWindowsProc(HWND hwnd, LPARAM lParam) {IconUpdateContext* ctx = (IconUpdateContext*)lParam;
+
+    char className[256];
+    if (GetClassNameA(hwnd, className, sizeof(className)) > 0) {
+        std::string key = className;
+
+        // Safely check if this window's class exists in your icon maps
+        auto itOnline = ctx->onlineIcons.find(key);
+        auto itOffline = ctx->offlineIcons.find(key);
+
+        if (itOnline != ctx->onlineIcons.end() && itOffline != ctx->offlineIcons.end()) {
+            HICON hIcon = ctx->connected ? itOnline->second : itOffline->second;
+            
+            // Apply icons
+            SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+            SendMessage(hwnd, WM_SETICON, ICON_BIG,   (LPARAM)hIcon);
+        }
+    }
+
+    return TRUE; // Continue reading
+}
+
 void UpdateTrayIcon(HWND hWnd) {
     std::string tooltip;
     std::string title = "IBKR Gateway: ";
@@ -49,22 +77,9 @@ void UpdateTrayIcon(HWND hWnd) {
     nid.uFlags = NIF_TIP | NIF_ICON;
     nid.hIcon  = connected ? onlineIcons[DASHBOARD_CLASS_NAME] : offlineIcons[DASHBOARD_CLASS_NAME];
     Shell_NotifyIcon(NIM_MODIFY, &nid);
-    
-    for (const auto& pair : g_AppWindows) {
-        const std::string& key = pair.first;
-        const HWND& hwnd = pair.second;
-        
-        // Validate window is still alive
-        if (!hwnd || !IsWindow(hwnd)) continue;
-        
-        // Check icons exist before using them
-        if (onlineIcons.find(key) == onlineIcons.end() || 
-            offlineIcons.find(key) == offlineIcons.end()) continue;
-        
-        HICON hIcon = connected ? onlineIcons[key] : offlineIcons[key];
-        SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
-        SendMessage(hwnd, WM_SETICON, ICON_BIG,   (LPARAM)hIcon);
-    }
+
+    IconUpdateContext ctx = { connected, onlineIcons, offlineIcons };
+    EnumWindows(IconsEnumWindowsProc, (LPARAM)&ctx);
             
     SetWindowTextA(hWnd, title.c_str());
 }
