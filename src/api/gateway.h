@@ -14,7 +14,17 @@
 #include <mutex>
 #include <memory>
 
-#include "messages.h"
+#define WM_API_UPDATE      (WM_USER + 2)
+#define WM_SYMBOL_RESULTS  (WM_USER + 3)
+#define WM_API_ERROR       (WM_USER + 4)
+#define WM_ACCOUNT_SUMMARY (WM_USER + 5)
+#define WM_PNL_UPDATE      (WM_USER + 6)
+#define WM_ORDERS_UPDATE   (WM_USER + 7)
+#define WM_DIAMONDS_UPDATE (WM_USER + 8)
+#define WM_NEWS_RESULTS    (WM_USER + 9)
+#define WM_TIMESALES_TICK  (WM_USER + 10)
+#define WM_NEWS_ARTICLE    (WM_USER + 11)
+#define WM_TICKER_UPDATE   (WM_USER + 12)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TradingAPI — public interface
@@ -69,6 +79,22 @@ public:
         std::string extraData;
     };
 
+    // One row in the watchlist ticker. Posted via WM_TICKER_UPDATE (lParam = new std::string*(symbol)).
+    // Handler calls getTickerData(symbol) to read updated values, then deletes the string.
+    struct TickerInfo {
+        std::string symbol;
+        double    last      = 0.0;
+        double    prevClose = 0.0;  // previous close, used to compute change
+        double    bid       = 0.0;
+        double    ask       = 0.0;
+        double    high      = 0.0;
+        double    low       = 0.0;
+        long long volume    = 0;
+ 
+        double change()    const { return prevClose > 0 ? last - prevClose : 0.0; }
+        double changePct() const { return prevClose > 0 ? (last - prevClose) / prevClose * 100.0 : 0.0; }
+    };
+ 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     TradingAPI();
@@ -120,6 +146,13 @@ public:
 
     void setTimesalesWindow(HWND hWnd, int conId, const std::string& symbol);
     void unsetTimesalesWindow();
+
+    // ── Ticker ────────────────────────────────────────────────────────
+
+    void setTickerWindow(HWND hWnd, const std::vector<std::string>& entries);
+    void unsetTickerWindow();
+    void reqWatchlist();
+    bool getTickerData(const std::string& symbol, TickerInfo& out);
 
     // ── Symbol search ─────────────────────────────────────────────────────────
 

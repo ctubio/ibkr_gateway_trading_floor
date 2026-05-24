@@ -4,9 +4,9 @@ void startNews() { startGenericWindow(NEWS_CLASS_NAME, "News", L"IBKRGatewayClie
 
 void startNewsArticle() { startGenericWindow(NEWS_ARTICLE_CLASS_NAME, "News Article", L"IBKRGatewayClient.NewsArticle", 600, 500); }
 
-#define ID_NEWS_LIST_COMBO   6001
-#define ID_NEWS_SYM_COMBO    6002
-#define ID_NEWS_RESULTS_LIST 6003
+#define ID_NEWS_LIST_COMBO   3001
+#define ID_NEWS_SYM_COMBO    3002
+#define ID_NEWS_RESULTS_LIST 3003
 
 static HWND hNewsArticleEdit = NULL;
 static HWND hNewsListCombo = NULL;
@@ -294,6 +294,9 @@ LRESULT CALLBACK WndProcNews(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             if (sel != CB_ERR && sel < (int)newsSymEntries.size())
                 News_RequestForSymbol(newsSymEntries[sel]);
         }
+
+        api.addApiUpdateWindow(hWnd);
+
         break;
     }
 
@@ -406,6 +409,26 @@ LRESULT CALLBACK WndProcNews(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         break;
     }
 
+    case WM_API_UPDATE:
+        if (api.isMarketDataConnected() && api.isTradingConnected()) {
+            int sel = (int)SendMessage(hNewsSymCombo, CB_GETCURSEL, 0, 0);
+            if (sel != CB_ERR && sel < (int)newsSymEntries.size())
+                News_RequestForSymbol(newsSymEntries[sel]);
+        } else {
+            if (hNewsResults) {
+                int count = ListView_GetItemCount(hNewsResults);
+                for (int i = 0; i < count; ++i) {
+                    LVITEMA lvi = {};
+                    lvi.mask  = LVIF_PARAM;
+                    lvi.iItem = i;
+                    SendMessageA(hNewsResults, LVM_GETITEMA, 0, (LPARAM)&lvi);
+                    delete reinterpret_cast<std::string*>(lvi.lParam);
+                }
+                ListView_DeleteAllItems(hNewsResults);
+            }
+        }
+        break;
+        
     case WM_DESTROY:
         // Free the heap-allocated rowId strings stored as item lParams.
         if (hNewsResults) {
@@ -423,6 +446,7 @@ LRESULT CALLBACK WndProcNews(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         hNewsSymCombo  = NULL;
         hNewsResults   = NULL;
         newsSymEntries.clear();
+        api.removeApiUpdateWindow(hWnd);
         break;
     }
 

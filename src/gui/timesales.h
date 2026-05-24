@@ -2,12 +2,12 @@
 
 void startTimesales() { startGenericWindow(TIMESALES_CLASS_NAME, "Time & Sales", L"IBKRGatewayClient.Timesales", 380, 500); }
 
-#define ID_TS_LIST_COMBO    7001
-#define ID_TS_SYM_COMBO     7002
-#define ID_TS_LIST          7003
-#define ID_TS_FILTER_CHECK  7004
-#define ID_TS_LIST_F100     7005
-#define ID_TS_LIST_F1000    7006
+#define ID_TS_LIST_COMBO    6001
+#define ID_TS_SYM_COMBO     6002
+#define ID_TS_LIST          6003
+#define ID_TS_FILTER_CHECK  6004
+#define ID_TS_LIST_F100     6005
+#define ID_TS_LIST_F1000    6006
 
 static HWND hTsListCombo    = NULL;
 static HWND hTsSymCombo     = NULL;
@@ -242,6 +242,8 @@ LRESULT CALLBACK WndProcTimesales(HWND hWnd, UINT message, WPARAM wParam, LPARAM
             if (sel != CB_ERR && sel < (int)tsSymEntries.size())
                 Ts_Subscribe(hWnd, tsSymEntries[sel]);
         }
+
+        api.addApiUpdateWindow(hWnd);
         break;
     }
 
@@ -312,6 +314,20 @@ LRESULT CALLBACK WndProcTimesales(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         break;
     }
 
+    case WM_API_UPDATE: {
+        if (api.isMarketDataConnected() && api.isTradingConnected()) {
+            // Refresh current subscription to update with any new lists/symbols
+            int sel = (int)SendMessage(hTsSymCombo, CB_GETCURSEL, 0, 0);
+            if (sel != CB_ERR && sel < (int)tsSymEntries.size())
+                Ts_Subscribe(hWnd, tsSymEntries[sel]);
+        } else {
+            ListView_DeleteAllItems(hTsList);
+            if (hTsListF100)  ListView_DeleteAllItems(hTsListF100);
+            if (hTsListF1000) ListView_DeleteAllItems(hTsListF1000);
+        }
+        break;
+    }
+
     case WM_DESTROY:
         api.unsetTimesalesWindow();
         hTsListCombo  = NULL;
@@ -321,6 +337,7 @@ LRESULT CALLBACK WndProcTimesales(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         hTsListF1000  = NULL;
         hTsFilterCheck = NULL;
         tsSymEntries.clear();
+        api.removeApiUpdateWindow(hWnd);
         break;
     }
 

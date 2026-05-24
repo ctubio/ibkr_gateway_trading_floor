@@ -98,6 +98,8 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
         }
 
         api.setDiamondsWindow(hWnd);
+
+        api.addApiUpdateWindow(hWnd);
         break;
     }
 
@@ -154,8 +156,21 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
         break;
     }
 
+    case WM_API_UPDATE: {
+        HWND hList = GetDlgItem(hWnd, 1);
+        if (hList) {
+            if (api.isMarketDataConnected() && api.isTradingConnected()) {
+                Diamonds_Repopulate(hList);
+            } else {
+                ListView_DeleteAllItems(hList);
+            }
+        }
+        break;
+    }
+    
     case WM_DESTROY:
         api.unsetDiamondsWindow();
+        api.removeApiUpdateWindow(hWnd);
         break;
     }
 

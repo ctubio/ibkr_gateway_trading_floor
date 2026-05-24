@@ -16,9 +16,9 @@ void startDashboard(HINSTANCE hInst) { startGenericWindow(DASHBOARD_CLASS_NAME, 
 #define ID_M_LEVELS     1008
 #define ID_M_ORDERS     1009
 
-#define ID_M_CONNECT    3001
-#define ID_M_DISCONNECT 3002
-#define ID_M_EXIT       3003
+#define ID_M_CONNECT    1010
+#define ID_M_DISCONNECT 1011
+#define ID_M_EXIT       1012
 
 bool shouldBeConnected = true;
 

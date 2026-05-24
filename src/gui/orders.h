@@ -129,6 +129,7 @@ LRESULT CALLBACK WndProcOrders(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
         }
 
         api.setOrdersWindow(hWnd);
+        api.addApiUpdateWindow(hWnd);
         break;
     }
 
@@ -196,8 +197,22 @@ LRESULT CALLBACK WndProcOrders(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
         break;
     }
 
+
+    case WM_API_UPDATE: {
+        HWND hList = GetDlgItem(hWnd, 1);
+        if (hList) {
+            if (api.isMarketDataConnected() && api.isTradingConnected()) {
+                Orders_Repopulate(hList);
+            } else {
+                ListView_DeleteAllItems(hList);
+            }
+        }
+        break;
+    }
+    
     case WM_DESTROY:
         api.unsetOrdersWindow();
+        api.removeApiUpdateWindow(hWnd);
         break;
     }
 

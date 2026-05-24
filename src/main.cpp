@@ -1,20 +1,19 @@
-#include "gateway.h"
+#include "api/gateway.h"
+#include "api/debug.h"
+#include "api/registry.h"
+#include "api/sound.h"
+#include "api/shared.h"
 
-#include "debug.h"
-#include "registry.h"
-#include "sound.h"
-#include "shared.h"
-
-#include "settings.h"
-#include "book.h"
-#include "diamonds.h"
-#include "coins.h"
-#include "news.h"
-#include "timesales.h"
-#include "levels.h"
-#include "orders.h"
-#include "ticker.h"
-#include "dashboard.h"
+#include "gui/settings.h"
+#include "gui/book.h"
+#include "gui/diamonds.h"
+#include "gui/coins.h"
+#include "gui/news.h"
+#include "gui/timesales.h"
+#include "gui/levels.h"
+#include "gui/orders.h"
+#include "gui/ticker.h"
+#include "gui/dashboard.h"
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
     MutexInstance();
@@ -49,7 +48,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
     lstrcpy(nid.szTip, "Offline");
     Shell_NotifyIcon(NIM_ADD, &nid);
 
-    Session_RestoreWindows(startBook, startCoins, startDiamonds, startNews, startSettings, startTimesales, startLevels, startTicker, startOrders, startDebugLog);
+    Session_RestoreWindows(
+        startBook,    startCoins,    startDiamonds,
+        startNews,    startSettings, startTimesales,
+        startLevels,  startTicker,   startOrders,
+        startDebugLog
+    );
 
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {
