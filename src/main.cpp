@@ -20,7 +20,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
 
     InitDarkBrushes();
     
-    registerWindowClass(hInst, HandleCommonMessages, BOOK_NEW_LIST_CLASS_NAME,  2);
+    registerWindowClass(hInst, WndProcBookNewList,   BOOK_NEW_LIST_CLASS_NAME,  2);
     registerWindowClass(hInst, WndProcBook,          BOOK_CLASS_NAME,           2);
     registerWindowClass(hInst, WndProcCoins,         COINS_CLASS_NAME,          3);
     registerWindowClass(hInst, WndProcDiamonds,      DIAMONDS_CLASS_NAME,       4);

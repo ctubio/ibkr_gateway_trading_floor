@@ -262,6 +262,76 @@ LRESULT CALLBACK AutoCompleteSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LP
 
 // ─── Window Procedure ────────────────────────────────────────────────────────
 
+#define WM_BOOKNEWLIST_START (WM_APP + 100)
+
+static HWND hNewListEdit = NULL;
+
+LRESULT CALLBACK WndProcBookNewList(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    switch (message) {
+        case WM_CREATE: {
+            // Create the edit control and return immediately so WM_CREATE finishes.
+            // The window will fully paint its NC area (title bar, border, icons)
+            // before WM_BOOKNEWLIST_START arrives, fixing the blank-title glitch.
+            hNewListEdit = CreateWindowA("EDIT", "",
+                WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+                10, 10, 260 - 28, 24,
+                hWnd, (HMENU)1, GetModuleHandle(NULL), NULL);
+
+            PostMessage(hWnd, WM_BOOKNEWLIST_START, 0, 0);
+            break;
+        }
+
+        case WM_BOOKNEWLIST_START: {
+            // Window is fully created and painted by now — safe to run the modal loop.
+            SetFocus(hNewListEdit);
+
+            MSG dlgMsg;
+            char newName[128] = {};
+            bool dlgDone = false;
+
+            while (!dlgDone && GetMessage(&dlgMsg, NULL, 0, 0)) {
+                if (dlgMsg.hwnd == hNewListEdit
+                    && dlgMsg.message == WM_KEYDOWN
+                    && dlgMsg.wParam == VK_RETURN)
+                {
+                    GetWindowTextA(hNewListEdit, newName, sizeof(newName));
+                    dlgDone = true;
+                } else if (dlgMsg.message == WM_KEYDOWN && dlgMsg.wParam == VK_ESCAPE) {
+                    dlgDone = true;
+                } else {
+                    TranslateMessage(&dlgMsg);
+                    DispatchMessage(&dlgMsg);
+                }
+                if (!IsWindow(hWnd)) dlgDone = true;
+            }
+
+            hNewListEdit = NULL;
+            DestroyWindow(hWnd);
+
+            if (strlen(newName) > 0) {
+                HKEY hKey;
+                char fullPath[256];
+                wsprintf(fullPath, "%s\\Book", APP_REG_ROOT);
+                if (RegCreateKeyExA(HKEY_CURRENT_USER, fullPath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+                    const char empty[2] = { '\0', '\0' };
+                    RegSetValueExA(hKey, newName, 0, REG_MULTI_SZ, (const BYTE*)empty, 2);
+                    RegCloseKey(hKey);
+                }
+                Book_LoadAllLists(hBookCombo);
+                int idx = SendMessageA(hBookCombo, CB_FINDSTRINGEXACT, -1, (LPARAM)newName);
+                if (idx != CB_ERR) {
+                    SendMessage(hBookCombo, CB_SETCURSEL, idx, 0);
+                    Book_LoadList(newName, hBookListBox);
+                    Book_UpdateControlStates();
+                }
+            }
+            break;
+        }
+    }
+
+    return HandleCommonMessages(hWnd, message, wParam, lParam);
+}
+
 LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
         case WM_CREATE: {
@@ -388,53 +458,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                 break;
 
             case ID_BOOK_NEW_LIST: {
-                int dlgW = 260;
-                startGenericWindow(BOOK_NEW_LIST_CLASS_NAME, "New Book Name", L"IBKRGatewayClient.BookNewList", dlgW, 75);
-
-                HWND hDlgEdit = CreateWindowA("EDIT", "",
-                    WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-                    10, 10, dlgW - 28, 24,
-                    g_AppWindows[BOOK_NEW_LIST_CLASS_NAME], (HMENU)1, GetModuleHandle(NULL), NULL);
-
-                ShowWindow(g_AppWindows[BOOK_NEW_LIST_CLASS_NAME], SW_SHOW);
-                UpdateWindow(g_AppWindows[BOOK_NEW_LIST_CLASS_NAME]);
-                SetFocus(hDlgEdit);
-
-                MSG dlgMsg;
-                char newName[128] = {};
-                bool dlgDone = false;
-
-                while (!dlgDone && GetMessage(&dlgMsg, NULL, 0, 0)) {
-                    if (dlgMsg.message == WM_KEYDOWN && dlgMsg.wParam == VK_RETURN) {
-                        GetWindowTextA(hDlgEdit, newName, sizeof(newName));
-                        dlgDone = true;
-                    } else if (dlgMsg.message == WM_KEYDOWN && dlgMsg.wParam == VK_ESCAPE) {
-                        dlgDone = true;
-                    } else {
-                        TranslateMessage(&dlgMsg);
-                        DispatchMessage(&dlgMsg);
-                    }
-                    if (!IsWindow(g_AppWindows[BOOK_NEW_LIST_CLASS_NAME])) dlgDone = true;
-                }
-                DestroyWindow(g_AppWindows[BOOK_NEW_LIST_CLASS_NAME]);
-
-                if (strlen(newName) > 0) {
-                    HKEY hKey;
-                    char fullPath[256];
-                    wsprintf(fullPath, "%s\\Book", APP_REG_ROOT);
-                    if (RegCreateKeyExA(HKEY_CURRENT_USER, fullPath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
-                        const char empty[2] = { '\0', '\0' };
-                        RegSetValueExA(hKey, newName, 0, REG_MULTI_SZ, (const BYTE*)empty, 2);
-                        RegCloseKey(hKey);
-                    }
-                    Book_LoadAllLists(hBookCombo);
-                    int idx = SendMessageA(hBookCombo, CB_FINDSTRINGEXACT, -1, (LPARAM)newName);
-                    if (idx != CB_ERR) {
-                        SendMessage(hBookCombo, CB_SETCURSEL, idx, 0);
-                        Book_LoadList(newName, hBookListBox);
-                        Book_UpdateControlStates();
-                    }
-                }
+                startGenericWindow(BOOK_NEW_LIST_CLASS_NAME, "New Book Name", L"IBKRGatewayClient.BookNewList", 260, 75);
                 break;
             }
 
