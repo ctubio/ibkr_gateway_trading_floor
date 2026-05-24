@@ -1,8 +1,8 @@
 #pragma once
 
-void startNews() { startGenericWindow(NEWS_CLASS_NAME, "News", L"IBKRGatewayClient.News", 420, 500); }
+void StartNews() { StartGenericWindow(NEWS_CLASS_NAME, "News", L"IBKRGatewayClient.News", 420, 500); }
 
-void startNewsArticle() { startGenericWindow(NEWS_ARTICLE_CLASS_NAME, "News Article", L"IBKRGatewayClient.NewsArticle", 600, 500); }
+void StartNewsArticle() { StartGenericWindow(NEWS_ARTICLE_CLASS_NAME, "News Article", L"IBKRGatewayClient.NewsArticle", 600, 500); }
 
 #define ID_NEWS_LIST_COMBO   3001
 #define ID_NEWS_SYM_COMBO    3002
@@ -365,7 +365,7 @@ LRESULT CALLBACK WndProcNews(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             // Simple popup edit box — read-only, scrollable, word-wrapped.
             // Use WS_OVERLAPPEDWINDOW for full window capabilities (draggable, resizable, closable)
             articleBuffer = std::string(*body);
-            startNewsArticle();
+            StartNewsArticle();
         }
         delete body;
         break;

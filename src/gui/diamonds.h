@@ -1,6 +1,6 @@
 #pragma once
 
-void startDiamonds() { startGenericWindow(DIAMONDS_CLASS_NAME, "Diamonds", L"IBKRGatewayClient.Diamonds", 700, 400); }
+void StartDiamonds() { StartGenericWindow(DIAMONDS_CLASS_NAME, "Diamonds", L"IBKRGatewayClient.Diamonds", 700, 400); }
 
 #define ID_DIAMONDS_RESULTS_LIST 7001
 
@@ -139,7 +139,7 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
                 ListView_GetItem(hDiamondsResults, &item);
                 int conId = (int)item.lParam;
                 
-                startTimesales(text, conId); // Spawn multi-instance immediately
+                StartTimesales(text, conId); // Spawn multi-instance immediately
             }
         }
         if (hdr->code == NM_CUSTOMDRAW) {

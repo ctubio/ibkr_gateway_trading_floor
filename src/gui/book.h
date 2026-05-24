@@ -1,6 +1,6 @@
 #pragma once
 
-void startBook() { startGenericWindow(BOOK_CLASS_NAME, "Book", L"IBKRGatewayClient.Book", 373, 240); }
+void StartBook() { StartGenericWindow(BOOK_CLASS_NAME, "Book", L"IBKRGatewayClient.Book", 373, 240); }
 
 static HWND hAutoComplete = NULL;
 
@@ -458,7 +458,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                 break;
 
             case ID_BOOK_NEW_LIST: {
-                startGenericWindow(BOOK_NEW_LIST_CLASS_NAME, "New Book Name", L"IBKRGatewayClient.BookNewList", 260, 75);
+                StartGenericWindow(BOOK_NEW_LIST_CLASS_NAME, "New Book Name", L"IBKRGatewayClient.BookNewList", 260, 75);
                 break;
             }
 

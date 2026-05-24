@@ -1,6 +1,6 @@
 #pragma once
 
-void startDashboard(HINSTANCE hInst) { startGenericWindow(DASHBOARD_CLASS_NAME, "IBKR Gateway: Offline", L"IBKRGatewayClient.Dashboard", 324, 70, hInst); }
+void StartDashboard(HINSTANCE hInst) { StartGenericWindow(DASHBOARD_CLASS_NAME, "IBKR Gateway: Offline", L"IBKRGatewayClient.Dashboard", 324, 70, hInst); }
 
 #define WM_TRAYICON (WM_USER + 1)
 
@@ -255,31 +255,31 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
                     break;
                     
                 case ID_M_SYMBOLS:
-                    startBook();
+                    StartBook();
                     break;
                 case ID_M_COINS:
-                    startCoins();
+                    StartCoins();
                     break;
                 case ID_M_DIAMONDS:
-                    startDiamonds();
+                    StartDiamonds();
                     break;
                 case ID_M_NEWS:
-                    startNews();
+                    StartNews();
                     break;
                 case ID_M_TIMESALES:
-                    startTimesales();
+                    StartTimesales();
                     break;
                 case ID_M_LEVELS:
-                    startLevels();
+                    StartLevels();
                     break;
                 case ID_M_TICKER:
-                    startTicker();
+                    StartTicker();
                     break;
                 case ID_M_SETTINGS:
-                    startSettings();
+                    StartSettings();
                     break;
                 case ID_M_ORDERS:
-                    startOrders();
+                    StartOrders();
                     break;
             }
             break;

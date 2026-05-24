@@ -1,6 +1,6 @@
 #pragma once
 
-void startOrders() { startGenericWindow(ORDERS_CLASS_NAME, "Orders", L"IBKRGatewayClient.Orders", 781, 240); }
+void StartOrders() { StartGenericWindow(ORDERS_CLASS_NAME, "Orders", L"IBKRGatewayClient.Orders", 781, 240); }
 
 // ── Column definitions ────────────────────────────────────────────────────────
 

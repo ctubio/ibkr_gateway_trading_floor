@@ -1,6 +1,6 @@
 #pragma once
 
-void startTicker() { startGenericWindow(TICKER_CLASS_NAME, "Ticker", L"IBKRGatewayClient.Ticker", 560, 400); }
+void StartTicker() { StartGenericWindow(TICKER_CLASS_NAME, "Ticker", L"IBKRGatewayClient.Ticker", 560, 400); }
 
 #define ID_TICKER_LIST_COMBO  8001
 #define ID_TICKER_LIST        8002
@@ -270,7 +270,7 @@ LRESULT CALLBACK WndProcTicker(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
                 SendMessageA(hTickerList, LVM_GETITEMA, 0, (LPARAM)&lvi);
                 auto* rd = reinterpret_cast<TickerRowData*>(lvi.lParam);
                 if (rd) {
-                    startTimesales(rd->symbol, rd->conId);
+                    StartTimesales(rd->symbol, rd->conId);
                 }
             }
         }

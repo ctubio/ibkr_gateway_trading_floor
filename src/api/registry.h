@@ -243,16 +243,16 @@ void Session_RemoveWindow(HWND hWnd) {
 }
 
 void Session_RestoreWindows(
-    const std::function<void()>& startBook,
-    const std::function<void()>& startCoins,
-    const std::function<void()>& startDiamonds,
-    const std::function<void()>& startNews,
-    const std::function<void()>& startSettings,
-    const std::function<void(const std::string&, int)>& startTimesales,
-    const std::function<void()>& startLevels,
-    const std::function<void()>& startTicker,
-    const std::function<void()>& startOrders,
-    const std::function<void()>& startDebugLog
+    const std::function<void()>& StartBook,
+    const std::function<void()>& StartCoins,
+    const std::function<void()>& StartDiamonds,
+    const std::function<void()>& StartNews,
+    const std::function<void()>& StartSettings,
+    const std::function<void(const std::string&, int)>& StartTimesales,
+    const std::function<void()>& StartLevels,
+    const std::function<void()>& StartTicker,
+    const std::function<void()>& StartOrders,
+    const std::function<void()>& StartDebugLog
 ) {
     HKEY hKey;
     char fullPath[256];
@@ -270,19 +270,19 @@ void Session_RestoreWindows(
     const char* p = buf.data();
     while (*p) {
         std::string cls = p;
-        if      (cls == BOOK_CLASS_NAME)      startBook();
-        else if (cls == COINS_CLASS_NAME)     startCoins();
-        else if (cls == DIAMONDS_CLASS_NAME)  startDiamonds();
-        else if (cls == NEWS_CLASS_NAME)      startNews();
-        else if (cls == SETTINGS_CLASS_NAME)  startSettings();
-        else if (cls == LEVELS_CLASS_NAME)    startLevels();
-        else if (cls == TICKER_CLASS_NAME)    startTicker();
-        else if (cls == ORDERS_CLASS_NAME)    startOrders();
-        else if (cls == DEBUGLOG_CLASS_NAME)  startDebugLog();
+        if      (cls == BOOK_CLASS_NAME)      StartBook();
+        else if (cls == COINS_CLASS_NAME)     StartCoins();
+        else if (cls == DIAMONDS_CLASS_NAME)  StartDiamonds();
+        else if (cls == NEWS_CLASS_NAME)      StartNews();
+        else if (cls == SETTINGS_CLASS_NAME)  StartSettings();
+        else if (cls == LEVELS_CLASS_NAME)    StartLevels();
+        else if (cls == TICKER_CLASS_NAME)    StartTicker();
+        else if (cls == ORDERS_CLASS_NAME)    StartOrders();
+        else if (cls == DEBUGLOG_CLASS_NAME)  StartDebugLog();
         else if (cls == TIMESALES_CLASS_NAME) {
             std::string tsSaved = Settings_LoadString("OpenTimesales");
             if (tsSaved.empty()) {
-                startTimesales("", 0);
+                StartTimesales("", 0);
             } else {
                 size_t start = 0;
                 while (start < tsSaved.length()) {
@@ -293,7 +293,7 @@ void Session_RestoreWindows(
                     if (dot != std::string::npos) {
                         int cid = std::stoi(token.substr(0, dot));
                         std::string sym = token.substr(dot + 1);
-                        startTimesales(sym, cid);
+                        StartTimesales(sym, cid);
                     }
                     start = end + 1;
                 }

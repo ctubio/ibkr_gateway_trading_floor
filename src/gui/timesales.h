@@ -7,8 +7,8 @@
 // Payload passed during HWND creation
 struct TsInitData { std::string symbol; int conId; };
 
-void startTimesalesSearch(); // Forward declaration
-void startTimesales(const std::string& symbol = "", int conId = 0);
+void StartTimesalesSearch(); // Forward declaration
+void StartTimesales(const std::string& symbol = "", int conId = 0);
 
 #define ID_TS_LIST          6003
 #define ID_TS_FILTER_CHECK  6004
@@ -128,7 +128,7 @@ LRESULT CALLBACK TsSearchEditSubclass(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
                     int cid = std::stoi(r.substr(0, dot));
                     std::string rest = r.substr(dot + 1);
                     auto d2 = rest.find('.');
-                    startTimesales((d2 != std::string::npos) ? rest.substr(0, d2) : rest, cid);
+                    StartTimesales((d2 != std::string::npos) ? rest.substr(0, d2) : rest, cid);
                 }
                 DestroyWindow(GetParent(hWnd));
             }
@@ -150,7 +150,7 @@ LRESULT CALLBACK TsSearchListSubclass(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
                 int cid = std::stoi(r.substr(0, dot));
                 std::string rest = r.substr(dot + 1);
                 auto d2 = rest.find('.');
-                startTimesales((d2 != std::string::npos) ? rest.substr(0, d2) : rest, cid);
+                StartTimesales((d2 != std::string::npos) ? rest.substr(0, d2) : rest, cid);
             }
             DestroyWindow(GetParent(hWnd));
         }
@@ -194,7 +194,7 @@ LRESULT CALLBACK WndProcTsSearch(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
     return HandleCommonMessages(hWnd, message, wParam, lParam);
 }
 
-void startTimesalesSearch() {
+void StartTimesalesSearch() {
     static bool registered = false;
     if (!registered) {
         WNDCLASS wc = { 0 };
@@ -213,14 +213,14 @@ void startTimesalesSearch() {
     ApplyDarkMode(hWnd);
 }
 
-void startTimesales(const std::string& symbol, int conId) {
+void StartTimesales(const std::string& symbol, int conId) {
     if (symbol.empty() || conId == 0) {
-        startTimesalesSearch();
+        StartTimesalesSearch();
         return;
     }
     std::string key = TIMESALES_CLASS_NAME + std::string("_") + std::to_string(conId);
     TsInitData* data = new TsInitData{symbol, conId};
-    startGenericWindow(TIMESALES_CLASS_NAME, ("Time & Sales: " + symbol).c_str(), L"IBKRGatewayClient.Timesales", 380, 500, NULL, key, data);
+    StartGenericWindow(TIMESALES_CLASS_NAME, ("Time & Sales: " + symbol).c_str(), L"IBKRGatewayClient.Timesales", 380, 500, NULL, key, data);
 }
 
 // ── Window procedure ──────────────────────────────────────────────────────────

@@ -2,10 +2,8 @@
 #pragma once
 
 #include <cstring>
-#include <unordered_map>
 #include <algorithm>
-
-std::unordered_map<std::string, HWND> g_AppWindows;
+#include <string>
 
 // Dark mode colors
 #define DM_BG        RGB(32,  32,  32)
@@ -41,18 +39,19 @@ void SetWindowTaskbarId(HWND hWnd, const wchar_t* id) {
     }
 }
 
-// Updated startGenericWindow to handle multiple instances and lpParam payloads
-void startGenericWindow(const char* className, const char* title, const wchar_t* taskbarId, int defaultW, int defaultH, HINSTANCE hInst = NULL, const std::string& windowKey = "", LPVOID lpParam = NULL) {
-    std::string mapKey = windowKey.empty() ? className : windowKey;
-    HWND& hWnd = g_AppWindows[mapKey];
-    
+void StartGenericWindow(const char* className, const char* title, const wchar_t* taskbarId, int defaultW, int defaultH, HINSTANCE hInst = NULL, const std::string& windowKey = "", LPVOID lpParam = NULL) {
+    // Multi-instance windows (windowKey differs from className, e.g. timesales per-symbol)
+    // are distinguished by title - each has a unique one. Single-instance windows match
+    // on class alone. Either way no map needed: FindWindowA does the work.
+    bool multiInstance = !windowKey.empty() && windowKey != className;
+    HWND hWnd = FindWindowA(className, multiInstance ? title : NULL);
+
     if (hWnd && IsWindow(hWnd)) {
-        if (IsIconic(hWnd)) { 
+        if (IsIconic(hWnd)) {
             ShowWindow(hWnd, SW_RESTORE);
         } else {
             ShowWindow(hWnd, SW_SHOW);
         }
-        
         SetForegroundWindow(hWnd);
         SetActiveWindow(hWnd);
         SetFocus(hWnd);
@@ -63,7 +62,7 @@ void startGenericWindow(const char* className, const char* title, const wchar_t*
     int x = (GetSystemMetrics(SM_CXSCREEN) - w) / 2;
     int y = (GetSystemMetrics(SM_CYSCREEN) - h) / 2;
     LoadWinPosition(className, x, y, w, h);
-    
+
     if (hInst) {
         hWnd = CreateWindow(className, title, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, x, y, w, h, NULL, NULL, hInst, lpParam);
         ShowWindow(hWnd, SW_SHOW);
@@ -87,17 +86,17 @@ void startGenericWindow(const char* className, const char* title, const wchar_t*
         }
         if (strcmp(className, BOOK_NEW_LIST_CLASS_NAME) == 0) {
             dwExStyle = WS_EX_DLGMODALFRAME | WS_EX_TOPMOST;
-            dwStyle = WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE;
-            hWndParent = g_AppWindows[BOOK_CLASS_NAME];
+            dwStyle   = WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE;
+            hWndParent = FindWindowA(BOOK_CLASS_NAME, NULL);
         }
         if (strcmp(className, NEWS_ARTICLE_CLASS_NAME) == 0) {
             dwExStyle = WS_EX_DLGMODALFRAME;
-            dwStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-            hWndParent = g_AppWindows[NEWS_CLASS_NAME];
+            dwStyle   = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+            hWndParent = FindWindowA(NEWS_CLASS_NAME, NULL);
         }
-        hWnd = CreateWindowExA(dwExStyle, className, title, dwStyle, x, y, w, h, hWndParent, NULL, GetModuleHandle(NULL), lpParam);   
+        hWnd = CreateWindowExA(dwExStyle, className, title, dwStyle, x, y, w, h, hWndParent, NULL, GetModuleHandle(NULL), lpParam);
     }
-    
+
     if (strcmp(className, BOOK_NEW_LIST_CLASS_NAME) != 0)
         SetWindowTaskbarId(hWnd, taskbarId);
 }
@@ -154,7 +153,7 @@ HICON CreateGrayIcon(HICON hOriginal) {
 std::unordered_map<std::string, HICON> offlineIcons;
 std::unordered_map<std::string, HICON> onlineIcons;
 
-void registerWindowClass(HINSTANCE hInst, WNDPROC WndProc, const char* className, int iconId) {
+void RegisterWindowClass(HINSTANCE hInst, WNDPROC WndProc, const char* className, int iconId) {
     HICON& offlineIcon = offlineIcons[className];
     HICON& onlineIcon  = onlineIcons[className];
     onlineIcon  = (HICON)LoadImage(hInst, MAKEINTRESOURCE(iconId), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR);
@@ -265,11 +264,6 @@ LRESULT HandleCommonMessages(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                 PostQuitMessage(0);
             } else {
                 Session_RemoveWindow(hWnd);
-                // Erase exact HWND from the map to support multi-instance unregistering cleanly
-                for (auto it = g_AppWindows.begin(); it != g_AppWindows.end(); ) {
-                    if (it->second == hWnd) it = g_AppWindows.erase(it);
-                    else ++it;
-                }
             }
             return 0;
         default: {

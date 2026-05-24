@@ -1,6 +1,6 @@
 #pragma once
 
-void startCoins() { startGenericWindow(COINS_CLASS_NAME, "Coins", L"IBKRGatewayClient.Coins", 350, 400); }
+void StartCoins() { StartGenericWindow(COINS_CLASS_NAME, "Coins", L"IBKRGatewayClient.Coins", 350, 400); }
 
 // Label IDs
 #define ID_COINS_LABEL_BASE 5000
