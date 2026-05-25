@@ -39,37 +39,8 @@ struct IconUpdateContext {
 };
 
 // Toggle Always On Top state for a window by its class name
-
-HWND IsWindowAlwaysOnTop(const char* windowClassName) {
-    HWND hWnd = FindWindowA(windowClassName, NULL);
-    if (!hWnd) {
-        return NULL; // Window not found
-    }
-
-    LONG_PTR exStyle = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
-    
-    if (exStyle & WS_EX_TOPMOST) {
-        return hWnd;
-    }
-    return NULL;
-}
-
-void ToggleWindowAlwaysOnTop(const char* windowClassName) {
-    HWND hWnd = FindWindowA(windowClassName, NULL);
-    if (!hWnd) {
-        return; // Window not found
-    }
-    
-    LONG_PTR exStyle = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
-    
-    if (exStyle & WS_EX_TOPMOST) {
-        // Currently always on top, remove it
-        SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-    } else {
-        // Not always on top, make it so
-        SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-    }
-}
+// (Function definition is in registry.h to be accessible from Session_RestoreWindows)
+void ToggleWindowAlwaysOnTop(const char* windowClassName);
 
 BOOL CALLBACK IconsEnumWindowsProc(HWND hwnd, LPARAM lParam) {IconUpdateContext* ctx = (IconUpdateContext*)lParam;
 

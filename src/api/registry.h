@@ -388,6 +388,48 @@ void Session_RemoveWindow(HWND hWnd) {
     }
 }
 
+// Check if a window is currently set to Always On Top
+HWND IsWindowAlwaysOnTop(const char* windowClassName) {
+    HWND hWnd = FindWindowA(windowClassName, NULL);
+    if (!hWnd) {
+        return NULL; // Window not found
+    }
+
+    LONG_PTR exStyle = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
+    
+    if (exStyle & WS_EX_TOPMOST) {
+        return hWnd;
+    }
+    return NULL;
+}
+
+// Toggle Always On Top state for a window and save the preference
+void ToggleWindowAlwaysOnTop(const char* windowClassName) {
+    HWND hWnd = FindWindowA(windowClassName, NULL);
+    if (!hWnd) {
+        return; // Window not found
+    }
+    
+    LONG_PTR exStyle = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
+    bool isCurrentlyOnTop = (exStyle & WS_EX_TOPMOST) != 0;
+    
+    if (isCurrentlyOnTop) {
+        // Currently always on top, remove it
+        SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        // Save state: not on top
+        char key[256];
+        sprintf(key, "AlwaysOnTop_%s", windowClassName);
+        Settings_Save(key, 0);
+    } else {
+        // Not always on top, make it so
+        SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        // Save state: on top
+        char key[256];
+        sprintf(key, "AlwaysOnTop_%s", windowClassName);
+        Settings_Save(key, 1);
+    }
+}
+
 void Session_RestoreWindows(
     const std::function<void()>& StartBook,
     const std::function<void()>& StartCoins,
@@ -416,15 +458,69 @@ void Session_RestoreWindows(
     const char* p = buf.data();
     while (*p) {
         std::string cls = p;
-        if      (cls == BOOK_CLASS_NAME)      StartBook();
-        else if (cls == COINS_CLASS_NAME)     StartCoins();
-        else if (cls == DIAMONDS_CLASS_NAME)  StartDiamonds();
-        else if (cls == NEWS_CLASS_NAME)      StartNews();
-        else if (cls == SETTINGS_CLASS_NAME)  StartSettings();
-        else if (cls == LEVELS_CLASS_NAME)    StartLevels();
-        else if (cls == TICKER_CLASS_NAME)    StartTicker();
-        else if (cls == ORDERS_CLASS_NAME)    StartOrders();
-        else if (cls == DEBUGLOG_CLASS_NAME)  StartDebugLog();
+        if      (cls == BOOK_CLASS_NAME)      {
+            StartBook();
+            char key[256];
+            sprintf(key, "AlwaysOnTop_%s", BOOK_CLASS_NAME);
+            if(Settings_Load(key, 0))
+                ToggleWindowAlwaysOnTop(BOOK_CLASS_NAME);
+        }
+        else if (cls == COINS_CLASS_NAME)     {
+            StartCoins();
+            char key[256];
+            sprintf(key, "AlwaysOnTop_%s", COINS_CLASS_NAME);
+            if(Settings_Load(key, 0))
+                ToggleWindowAlwaysOnTop(COINS_CLASS_NAME);
+        }
+        else if (cls == DIAMONDS_CLASS_NAME)  { 
+            StartDiamonds(); 
+            char key[256];
+            sprintf(key, "AlwaysOnTop_%s", DIAMONDS_CLASS_NAME);
+            if(Settings_Load(key, 0))
+                ToggleWindowAlwaysOnTop(DIAMONDS_CLASS_NAME); 
+        }
+        else if (cls == NEWS_CLASS_NAME)      { 
+            StartNews(); 
+            char key[256];
+            sprintf(key, "AlwaysOnTop_%s", NEWS_CLASS_NAME);
+            if(Settings_Load(key, 0)) 
+                ToggleWindowAlwaysOnTop(NEWS_CLASS_NAME); 
+        }
+        else if (cls == SETTINGS_CLASS_NAME)  { 
+            StartSettings(); 
+            char key[256];
+            sprintf(key, "AlwaysOnTop_%s", SETTINGS_CLASS_NAME);
+            if(Settings_Load(key, 0)) 
+                ToggleWindowAlwaysOnTop(SETTINGS_CLASS_NAME); 
+        }
+        else if (cls == LEVELS_CLASS_NAME)    { 
+            StartLevels(); 
+            char key[256];
+            sprintf(key, "AlwaysOnTop_%s", LEVELS_CLASS_NAME);
+            if(Settings_Load(key, 0)) 
+                ToggleWindowAlwaysOnTop(LEVELS_CLASS_NAME); 
+        }
+        else if (cls == TICKER_CLASS_NAME)    { 
+            StartTicker(); 
+            char key[256];
+            sprintf(key, "AlwaysOnTop_%s", TICKER_CLASS_NAME);
+            if(Settings_Load(key, 0)) 
+                ToggleWindowAlwaysOnTop(TICKER_CLASS_NAME); 
+        }
+        else if (cls == ORDERS_CLASS_NAME)    { 
+            StartOrders(); 
+            char key[256];
+            sprintf(key, "AlwaysOnTop_%s", ORDERS_CLASS_NAME);
+            if(Settings_Load(key, 0)) 
+                ToggleWindowAlwaysOnTop(ORDERS_CLASS_NAME); 
+        }
+        else if (cls == DEBUGLOG_CLASS_NAME)  { 
+            StartDebugLog(); 
+            char key[256];
+            sprintf(key, "AlwaysOnTop_%s", DEBUGLOG_CLASS_NAME);
+            if(Settings_Load(key, 0)) 
+                ToggleWindowAlwaysOnTop(DEBUGLOG_CLASS_NAME); 
+        }
         else if (cls == TIMESALES_CLASS_NAME) {
             std::string tsSaved = Settings_LoadString("OpenTimesales");
             if (tsSaved.empty()) {
@@ -444,6 +540,10 @@ void Session_RestoreWindows(
                     start = end + 1;
                 }
             }
+            char key[256];
+            sprintf(key, "AlwaysOnTop_%s", TIMESALES_CLASS_NAME);
+            if (Settings_Load(key, 0))
+                ToggleWindowAlwaysOnTop(TIMESALES_CLASS_NAME);
         }
         p += strlen(p) + 1;
     }
