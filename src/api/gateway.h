@@ -59,8 +59,8 @@ public:
         double      avgCost           = 0.0;
         double      dailyPnL          = 0.0;
         double      marketValue       = 0.0;
-        double      fiftyTwoWeekChange = 0.0;
-        double      marketCap         = 0.0;
+        double      fiftyTwoWeekChange = 0.0;  // kept for compat; populated via TickerInfo now
+        double      marketCap         = 0.0;   // kept for compat; populated via TickerInfo now
     };
 
     // lParam of WM_TIMESALES_TICK — handler owns and must delete.
@@ -80,20 +80,53 @@ public:
         std::string extraData;
     };
 
-    // One row in the watchlist ticker. Posted via WM_TICKER_UPDATE (lParam = new std::string*(symbol)).
-    // Handler calls getTickerData(symbol) to read updated values, then deletes the string.
+    // One row in the watchlist / diamonds ticker.
+    // Posted via WM_TICKER_UPDATE (lParam = new std::string("conId.symbol")).
+    // Handler calls getTickerData(conId, symbol, out) then deletes the string.
     struct TickerInfo {
         std::string symbol;
-        double    last      = 0.0;
-        double    prevClose = 0.0;  // previous close, used to compute change
-        double    bid       = 0.0;
-        double    ask       = 0.0;
-        double    high      = 0.0;
-        double    low       = 0.0;
-        long long volume    = 0;
- 
+
+        // ── Price ticks (tickPrice) ──────────────────────────────────────────
+        double last      = 0.0;
+        double prevClose = 0.0;  // CLOSE tick — used to compute change
+        double open      = 0.0;  // OPEN tick (field 14)
+        double bid       = 0.0;
+        double ask       = 0.0;
+        double high      = 0.0;
+        double low       = 0.0;
+
+        // ── Size ticks (tickSize) ────────────────────────────────────────────
+        long long volume = 0;
+        double bidSize   = 0.0;
+        double askSize   = 0.0;
+
+        // ── Fundamental ratios (tickString field 47, generic tick "258") ─────
+        // Populated once per session; "-99999.99" sentinel is skipped.
+        double fiftyTwoWeekHigh = 0.0;  // NHIGH52
+        double fiftyTwoWeekLow  = 0.0;  // NLOW52
+        double marketCap        = 0.0;  // MKTCAP  (billions)
+        double beta             = 0.0;  // BETA
+
+        // ── Dividends (tickString field 59, generic tick "456") ──────────────
+        double annualDividends  = 0.0;
+        double dividendAmount   = 0.0;
+        std::string dividendDate;
+
+        // ── Generic ticks (tickGeneric) ──────────────────────────────────────
+        bool   halted = false;          // field 49 (HALTED)
+
+        // ── Computed helpers ─────────────────────────────────────────────────
         double change()    const { return prevClose > 0 ? last - prevClose : 0.0; }
         double changePct() const { return prevClose > 0 ? (last - prevClose) / prevClose * 100.0 : 0.0; }
+        double dividendYield() const { return (last > 0 && annualDividends > 0) ? (annualDividends / last * 100.0) : 0.0; }
+
+        // Position in 52W range: 0% = at 52W low, 100% = at 52W high.
+        // Returns a sentinel (-999) when data is not yet available.
+        double fiftyTwoWeekRangePct() const {
+            double range = fiftyTwoWeekHigh - fiftyTwoWeekLow;
+            if (range <= 0 || last <= 0) return -999.0;
+            return (last - fiftyTwoWeekLow) / range * 100.0;
+        }
     };
  
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -140,6 +173,7 @@ public:
 
     void setDiamondsWindow(HWND hWnd);
     void unsetDiamondsWindow();
+    void reqDiamondsWatchlist();   // call after reconnect to re-subscribe market data
     std::mutex& getPortfolioMutex();
     std::map<std::string, PositionInfo>& getPortfolioMap();
 
@@ -148,7 +182,7 @@ public:
     void setTimesalesWindow(HWND hWnd, int conId, const std::string& symbol);
     void unsetTimesalesWindow(HWND hWnd);
 
-    // ── Ticker ────────────────────────────────────────────────────────
+    // ── Ticker (watchlist) ────────────────────────────────────────────────────
 
     void setTickerWindow(HWND hWnd, const std::vector<std::string>& entries);
     void unsetTickerWindow();

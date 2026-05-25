@@ -1,6 +1,6 @@
 #pragma once
 
-void StartTicker() { StartGenericWindow(TICKER_CLASS_NAME, "Ticker", L"IBKRGatewayClient.Ticker", 560, 400); }
+void StartTicker() { StartGenericWindow(TICKER_CLASS_NAME, "Ticker", L"IBKRGatewayClient.Ticker", 1000, 400); }
 
 #define ID_TICKER_LIST_COMBO  8001
 #define ID_TICKER_LIST        8002
@@ -13,19 +13,35 @@ static const int TICKER_SELECTOR_H = 8 + TICKER_COMBO_H + 8;
 
 // ── Column definitions ────────────────────────────────────────────────────────
 
+enum TickerColIdx {
+    TCOL_SYMBOL = 0,
+    TCOL_LAST,
+    TCOL_CHGPCT,
+    TCOL_BID,
+    TCOL_BIDSIZE,
+    TCOL_ASK,
+    TCOL_ASKSIZE,
+    TCOL_DIV_YIELD,
+    TCOL_DIV_DATE,
+    TCOL_DIV_AMT,
+    TCOL_ANNUAL_DIV,
+    TCOL_COUNT
+};
+
 struct TickerCol { const char* header; int width; int fmt; };
 static const TickerCol tickerCols[] = {
-    { "Symbol",   80, LVCFMT_LEFT  },
-    { "Last",     75, LVCFMT_RIGHT },
-    { "Change",   75, LVCFMT_RIGHT },
-    { "Chg %",    70, LVCFMT_RIGHT },
-    { "Volume",   90, LVCFMT_RIGHT },
-    { "Bid",      75, LVCFMT_RIGHT },
-    { "Ask",      75, LVCFMT_RIGHT },
-    { "High",     75, LVCFMT_RIGHT },
-    { "Low",      75, LVCFMT_RIGHT },
+    { "Instrument",   90, LVCFMT_LEFT  },
+    { "Last",         75, LVCFMT_RIGHT },
+    { "Change %",     75, LVCFMT_RIGHT },
+    { "Bid",          75, LVCFMT_RIGHT },
+    { "Bid Size",     75, LVCFMT_RIGHT },
+    { "Ask",          75, LVCFMT_RIGHT },
+    { "Ask Size",     75, LVCFMT_RIGHT },
+    { "Div Yield %",  80, LVCFMT_RIGHT },
+    { "Div Date",     85, LVCFMT_RIGHT },
+    { "Div Amount",   80, LVCFMT_RIGHT },
+    { "Annual Div",   80, LVCFMT_RIGHT },
 };
-static const int TICKER_COL_COUNT = (int)(sizeof(tickerCols) / sizeof(tickerCols[0]));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -96,18 +112,16 @@ static void Ticker_UpdateRow(HWND hWnd, int row, const TradingAPI::TickerInfo& i
     };
     HWND hTickerList = GetDlgItem(hWnd, ID_TICKER_LIST);
 
-    ListView_SetItemText(hTickerList, row, 1, (LPSTR)fmt(info.last,      "%.2f"));
-    ListView_SetItemText(hTickerList, row, 2, (LPSTR)fmt(info.change(),  "%.2f"));
-    ListView_SetItemText(hTickerList, row, 3, (LPSTR)fmt(info.changePct(),"%.2f%%"));
-
-    if (info.volume > 0) snprintf(buf, sizeof(buf), "%lld", info.volume);
-    else buf[0] = '\0';
-    ListView_SetItemText(hTickerList, row, 4, buf);
-
-    ListView_SetItemText(hTickerList, row, 5, (LPSTR)fmt(info.bid,  "%.2f"));
-    ListView_SetItemText(hTickerList, row, 6, (LPSTR)fmt(info.ask,  "%.2f"));
-    ListView_SetItemText(hTickerList, row, 7, (LPSTR)fmt(info.high, "%.2f"));
-    ListView_SetItemText(hTickerList, row, 8, (LPSTR)fmt(info.low,  "%.2f"));
+    ListView_SetItemText(hTickerList, row, TCOL_LAST,       (LPSTR)fmt(info.last,      "%.2f"));
+    ListView_SetItemText(hTickerList, row, TCOL_CHGPCT,     (LPSTR)fmt(info.changePct(),"%.2f%%"));
+    ListView_SetItemText(hTickerList, row, TCOL_BID,        (LPSTR)fmt(info.bid,  "%.2f"));
+    ListView_SetItemText(hTickerList, row, TCOL_BIDSIZE,    (LPSTR)fmt(info.bidSize, "%.0f"));
+    ListView_SetItemText(hTickerList, row, TCOL_ASK,        (LPSTR)fmt(info.ask,  "%.2f"));
+    ListView_SetItemText(hTickerList, row, TCOL_ASKSIZE,    (LPSTR)fmt(info.askSize, "%.0f"));
+    ListView_SetItemText(hTickerList, row, TCOL_DIV_YIELD,  (LPSTR)fmt(info.dividendYield(), "%.2f%%"));
+    ListView_SetItemText(hTickerList, row, TCOL_DIV_DATE,   (LPSTR)info.dividendDate.c_str());
+    ListView_SetItemText(hTickerList, row, TCOL_DIV_AMT,    (LPSTR)fmt(info.dividendAmount, "%.3f"));
+    ListView_SetItemText(hTickerList, row, TCOL_ANNUAL_DIV, (LPSTR)fmt(info.annualDividends, "%.3f"));
 }
 
 // ── Layout ────────────────────────────────────────────────────────────────────
@@ -179,7 +193,7 @@ LRESULT CALLBACK WndProcTicker(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
             WS_EX_CLIENTEDGE, "SysListView32", "",
             WS_CHILD | WS_VISIBLE | WS_BORDER |
             LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER,
-            0, 0, 560, 400,
+            0, 0, 1000, 400,
             hWnd, (HMENU)ID_TICKER_LIST, hInst, NULL);
 
         DWORD exStyle = LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER;
@@ -188,7 +202,7 @@ LRESULT CALLBACK WndProcTicker(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
 
         LVCOLUMNA lvc = {};
         lvc.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT;
-        for (int i = 0; i < TICKER_COL_COUNT; ++i) {
+        for (int i = 0; i < TCOL_COUNT; ++i) {
             lvc.cx      = tickerCols[i].width;
             lvc.pszText = (LPSTR)tickerCols[i].header;
             lvc.fmt     = tickerCols[i].fmt;
@@ -257,7 +271,7 @@ LRESULT CALLBACK WndProcTicker(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
             HWND hTickerList = GetDlgItem(hWnd, ID_TICKER_LIST);
             int count = ListView_GetItemCount(hTickerList);
             for (int i = 0; i < count; ++i)
-                for (int col = 1; col < TICKER_COL_COUNT; ++col)
+                for (int col = 1; col < TCOL_COUNT; ++col)
                     ListView_SetItemText(hTickerList, i, col, (LPSTR)"");
         }
         break;
@@ -291,10 +305,10 @@ LRESULT CALLBACK WndProcTicker(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
                     }
                     return CDRF_NOTIFYSUBITEMDRAW;
                 case CDDS_ITEMPREPAINT | CDDS_SUBITEM: {
-                    if (cd->iSubItem == 2 || cd->iSubItem == 3) {
+                    if (cd->iSubItem == TCOL_CHGPCT) {
                         // Change / %Change — colour green or red
                         char buf[32] = {};
-                        ListView_GetItemText(GetDlgItem(hWnd, ID_TICKER_LIST), (int)cd->nmcd.dwItemSpec, 2, buf, sizeof(buf));
+                        ListView_GetItemText(GetDlgItem(hWnd, ID_TICKER_LIST), (int)cd->nmcd.dwItemSpec, TCOL_CHGPCT, buf, sizeof(buf));
                         double v = atof(buf);
                         if (v > 0)      cd->clrText = RGB(80, 200, 120);
                         else if (v < 0) cd->clrText = RGB(220, 80, 80);
