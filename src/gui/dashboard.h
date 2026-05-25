@@ -167,10 +167,6 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         }
 
         case WM_TIMER:
-            if (wParam == TIMER_DROPDOWN) {
-                KillTimer(hWnd, TIMER_DROPDOWN);
-                ShowWindow(hAutoComplete, SW_HIDE);
-            }
             if (wParam == TIMER_WATCHDOG) {
                 if (shouldBeConnected && !api.isConnected()) {
                     EnsureGatewayRunning(hWnd);

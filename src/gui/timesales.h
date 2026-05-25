@@ -14,6 +14,8 @@ void StartTimesales(const std::string& symbol = "", int conId = 0);
 #define ID_TS_FILTER_CHECK  6004
 #define ID_TS_LIST_F100     6005
 #define ID_TS_LIST_F1000    6006
+#define ID_TS_SEARCH_INPUT  6007
+#define ID_TS_SEARCH_LIST   6008
 
 // State mapped per-window to support infinite instances safely
 struct TsState {
@@ -101,12 +103,11 @@ static void Ts_Layout(HWND hWnd, TsState* state) {
 }
 
 // ── Search Popup Elements ─────────────────────────────────────────────────────
-static HWND hTsSearchEdit = NULL;
-static HWND hTsSearchList = NULL;
 static std::vector<std::string> tsSearchResults;
 
 LRESULT CALLBACK TsSearchEditSubclass(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
     if (msg == WM_KEYDOWN) {
+        HWND hTsSearchList = GetDlgItem(GetParent(hWnd), ID_TS_SEARCH_LIST);
         bool vis = IsWindowVisible(hTsSearchList);
         if (wParam == VK_DOWN && vis) {
             int count = SendMessage(hTsSearchList, LB_GETCOUNT, 0, 0);
@@ -164,22 +165,23 @@ LRESULT CALLBACK WndProcTsSearch(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
         case WM_CREATE: {
             HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
             CreateWindowA("STATIC", "Search Symbol:", WS_CHILD | WS_VISIBLE, 10, 10, 150, 20, hWnd, NULL, hInst, NULL);
-            hTsSearchEdit = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_UPPERCASE | ES_AUTOHSCROLL, 10, 30, 240, 24, hWnd, (HMENU)1, hInst, NULL);
+            HWND hTsSearchEdit = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_UPPERCASE | ES_AUTOHSCROLL, 10, 30, 240, 24, hWnd, (HMENU)ID_TS_SEARCH_INPUT, hInst, NULL);
             SetWindowSubclass(hTsSearchEdit, TsSearchEditSubclass, 1, 0);
-            hTsSearchList = CreateWindowA("LISTBOX", "", WS_CHILD | WS_VISIBLE | WS_BORDER | LBS_NOTIFY, 10, 60, 240, 150, hWnd, (HMENU)2, hInst, NULL);
+            HWND hTsSearchList = CreateWindowA("LISTBOX", "", WS_CHILD | WS_VISIBLE | WS_BORDER | LBS_NOTIFY, 10, 60, 240, 150, hWnd, (HMENU)ID_TS_SEARCH_LIST, hInst, NULL);
             SetWindowSubclass(hTsSearchList, TsSearchListSubclass, 2, 0);
             SetFocus(hTsSearchEdit);
             break;
         }
         case WM_COMMAND:
-            if (LOWORD(wParam) == 1 && HIWORD(wParam) == EN_CHANGE) {
-                char t[256] = {}; GetWindowTextA(hTsSearchEdit, t, sizeof(t));
+            if (LOWORD(wParam) == ID_TS_SEARCH_INPUT && HIWORD(wParam) == EN_CHANGE) {
+                char t[256] = {}; GetWindowTextA(GetDlgItem(hWnd, ID_TS_SEARCH_INPUT), t, sizeof(t));
                 if (strlen(t) > 0) { api.setSymbolSearchWindow(hWnd); api.searchSymbols(t); }
-                else { SendMessage(hTsSearchList, LB_RESETCONTENT, 0, 0); tsSearchResults.clear(); }
+                else { SendMessage(GetDlgItem(hWnd, ID_TS_SEARCH_LIST), LB_RESETCONTENT, 0, 0); tsSearchResults.clear(); }
             }
             break;
         case WM_SYMBOL_RESULTS: {
             tsSearchResults = api.getSymbolResults();
+            HWND hTsSearchList = GetDlgItem(hWnd, ID_TS_SEARCH_LIST);
             SendMessage(hTsSearchList, LB_RESETCONTENT, 0, 0);
             for (const auto& r : tsSearchResults) {
                 auto d = r.find('.');
@@ -188,7 +190,9 @@ LRESULT CALLBACK WndProcTsSearch(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
             }
             break;
         }
-        case WM_DESTROY: api.setSymbolSearchWindow(NULL); break;
+        case WM_DESTROY:
+            api.setSymbolSearchWindow(NULL);
+            break;
     }
     return HandleCommonMessages(hWnd, message, wParam, lParam);
 }
@@ -199,13 +203,13 @@ void StartTimesalesSearch() {
         WNDCLASS wc = { 0 };
         wc.lpfnWndProc = WndProcTsSearch;
         wc.hInstance = GetModuleHandle(NULL);
-        wc.lpszClassName = "TNTTsSearchWindowClass";
+        wc.lpszClassName = TIMESALES_SEARCH_CLASS_NAME;
         wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
         wc.hCursor = LoadCursor(NULL, IDC_ARROW);
         RegisterClass(&wc);
         registered = true;
     }
-    HWND hWnd = CreateWindowExA(WS_EX_DLGMODALFRAME | WS_EX_TOPMOST, "TNTTsSearchWindowClass", "Time & Sales - Search Symbol", 
+    HWND hWnd = CreateWindowExA(WS_EX_DLGMODALFRAME | WS_EX_TOPMOST, TIMESALES_SEARCH_CLASS_NAME, "Time & Sales - Search Symbol", 
         WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE, 
         (GetSystemMetrics(SM_CXSCREEN) - 260) / 2, (GetSystemMetrics(SM_CYSCREEN) - 240) / 2, 275, 260, 
         NULL, NULL, GetModuleHandle(NULL), NULL);
@@ -242,7 +246,7 @@ LRESULT CALLBACK WndProcTimesales(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         }
         tsStates[hWnd] = state;
 
-        state->hTsList      = Ts_CreateListView(hWnd, ID_TS_LIST,      hInst);
+        state->hTsList      = Ts_CreateListView(hWnd, ID_TS_LIST,       hInst);
         state->hTsListF100  = Ts_CreateListView(hWnd, ID_TS_LIST_F100,  hInst);
         state->hTsListF1000 = Ts_CreateListView(hWnd, ID_TS_LIST_F1000, hInst);
         ShowWindow(state->hTsList, SW_SHOW);

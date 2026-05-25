@@ -7,19 +7,20 @@
 
 constexpr const char* APP_REG_ROOT = "Software\\ibkr-gateway-trading-floor";
 
-static const char* SETTINGS_CLASS_NAME      = "TNTSettingsWindowClass";
-static const char* DEBUGLOG_CLASS_NAME      = "TNTSettingsDebugLogWindowClass";
-static const char* BOOK_CLASS_NAME          = "TNTBookWindowClass";
-static const char* BOOK_NEW_LIST_CLASS_NAME = "TNTBookNewListWindowClass";
-static const char* COINS_CLASS_NAME         = "TNTCoinsWindowClass";
-static const char* DASHBOARD_CLASS_NAME     = "TNTDashboardClass";
-static const char* ORDERS_CLASS_NAME        = "TNTOrdersWindowClass";
-static const char* LEVELS_CLASS_NAME        = "TNTLevelsWindowClass";
-static const char* NEWS_CLASS_NAME          = "TNTNewsWindowClass";
-static const char* NEWS_ARTICLE_CLASS_NAME  = "TNTNewsArticleWindowClass";
-static const char* DIAMONDS_CLASS_NAME      = "TNTDiamondsWindowClass";
-static const char* TICKER_CLASS_NAME        = "TNTTickerWindowClass";
-static const char* TIMESALES_CLASS_NAME     = "TNTTimesalesWindowClass";
+static const char* SETTINGS_CLASS_NAME         = "TNTSettingsWindowClass";
+static const char* DEBUGLOG_CLASS_NAME         = "TNTSettingsDebugLogWindowClass";
+static const char* BOOK_CLASS_NAME             = "TNTBookWindowClass";
+static const char* BOOK_NEW_LIST_CLASS_NAME    = "TNTBookNewListWindowClass";
+static const char* COINS_CLASS_NAME            = "TNTCoinsWindowClass";
+static const char* DASHBOARD_CLASS_NAME        = "TNTDashboardClass";
+static const char* ORDERS_CLASS_NAME           = "TNTOrdersWindowClass";
+static const char* LEVELS_CLASS_NAME           = "TNTLevelsWindowClass";
+static const char* NEWS_CLASS_NAME             = "TNTNewsWindowClass";
+static const char* NEWS_ARTICLE_CLASS_NAME     = "TNTNewsArticleWindowClass";
+static const char* DIAMONDS_CLASS_NAME         = "TNTDiamondsWindowClass";
+static const char* TICKER_CLASS_NAME           = "TNTTickerWindowClass";
+static const char* TIMESALES_CLASS_NAME        = "TNTTimesalesWindowClass";
+static const char* TIMESALES_SEARCH_CLASS_NAME = "TNTTsSearchWindowClass";
 
 // Dark mode colors
 #define DM_BG        RGB(32,  32,  32)

@@ -5,23 +5,27 @@ void StartBook() { StartGenericWindow(BOOK_CLASS_NAME, "Book", L"IBKRGatewayClie
 static HWND hAutoComplete = NULL;
 
 // Control IDs
-#define ID_BOOK_COMBO        2001
-#define ID_BOOK_NEW_LIST     2002
-#define ID_BOOK_DEL_LIST     2003
-#define ID_BOOK_LISTBOX      2004
-#define ID_BOOK_EDIT         2005
-#define ID_BOOK_ADD_ITEM     2006
-#define ID_BOOK_DEL_ITEM     2007
-#define ID_BOOK_AUTOCOMPLETE 2008
-#define ID_BOOK_ITEM_UP      2009
-#define ID_BOOK_ITEM_DOWN    2010
-#define TIMER_DROPDOWN       99
+#define ID_BOOK_COMBO            2001
+#define ID_BOOK_NEW_LIST         2002
+#define ID_BOOK_DEL_LIST         2003
+#define ID_BOOK_LISTBOX          2004
+#define ID_BOOK_EDIT             2005
+#define ID_BOOK_ADD_ITEM         2006
+#define ID_BOOK_DEL_ITEM         2007
+#define ID_M_BOOK_AUTOCOMPLETE   2008
+#define ID_BOOK_ITEM_UP          2009
+#define ID_BOOK_ITEM_DOWN        2010
+#define ID_BOOK_NEW_SYMBOL       2011
+#define ID_BOOK_NEW_SYMBOL_INPUT 2012
+#define TIMER_DROPDOWN             99
 
-static HWND hBookCombo, hBookListBox, hBookEdit, hBookBtnDelList, hBookLabelNewSymbol, hBookBtnUp, hBookBtnDown;
+#define WM_BOOKNEWLIST_START (WM_APP + 100)
+
 static bool suppressSearch = false;
 static bool showingOffline = false;
 static std::vector<std::string> currentResults;  // full conId.symbol.exchange
 static std::string pendingFullEntry;             // set when user selects from dropdown
+static std::vector<std::string> bookItems;       // full conId.symbol.exchange mirroring listbox
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -33,6 +37,8 @@ std::string Book_DisplayLabel(const std::string& entry) {
 }
 
 std::string Book_GetSelectedBook() {
+    HWND hBookWnd = FindWindowA(BOOK_CLASS_NAME, NULL);
+    HWND hBookCombo = GetDlgItem(hBookWnd, ID_BOOK_COMBO);
     int sel = SendMessage(hBookCombo, CB_GETCURSEL, 0, 0);
     if (sel == CB_ERR) return "";
     int len = SendMessage(hBookCombo, CB_GETLBTEXTLEN, sel, 0);
@@ -64,8 +70,6 @@ void Book_SaveFullList(const char* listName, const std::vector<std::string>& ite
     }
 }
 
-static std::vector<std::string> bookItems; // full conId.symbol.exchange mirroring listbox
-
 std::vector<std::string> Book_ReadListEntries(const char* listName) {
     std::vector<std::string> entries;
     HKEY hKey;
@@ -85,14 +89,17 @@ std::vector<std::string> Book_ReadListEntries(const char* listName) {
     return entries;
 }
 
-void Book_LoadList(const char* listName, HWND hLB) {
-    SendMessage(hLB, LB_RESETCONTENT, 0, 0);
+void Book_LoadList(const char* listName) {
+    HWND hBookWnd = FindWindowA(BOOK_CLASS_NAME, NULL);
+    HWND hBookList = GetDlgItem(hBookWnd, ID_BOOK_LISTBOX);
+
+    SendMessage(hBookList, LB_RESETCONTENT, 0, 0);
     bookItems.clear();
 
     auto entries = Book_ReadListEntries(listName);
     for (const auto& full : entries) {
         bookItems.push_back(full);
-        SendMessageA(hLB, LB_ADDSTRING, 0, (LPARAM)Book_DisplayLabel(full).c_str());
+        SendMessageA(hBookList, LB_ADDSTRING, 0, (LPARAM)Book_DisplayLabel(full).c_str());
     }
 }
 
@@ -143,6 +150,9 @@ void Book_UpdateAutoComplete(HWND hWnd, const std::vector<std::string>& results)
         SendMessageA(hAutoComplete, LB_ADDSTRING, 0, (LPARAM)Book_DisplayLabel(s).c_str());
 
     RECT r;
+    
+    HWND hBookWnd = FindWindowA(BOOK_CLASS_NAME, NULL);
+    HWND hBookEdit = GetDlgItem(hBookWnd, ID_BOOK_EDIT);
     GetWindowRect(hBookEdit, &r);
 
     int itemHeight = SendMessage(hAutoComplete, LB_GETITEMHEIGHT, 0, 0);
@@ -155,19 +165,21 @@ void Book_UpdateAutoComplete(HWND hWnd, const std::vector<std::string>& results)
 
 void Book_UpdateControlStates() {
     std::string book = Book_GetSelectedBook();
+    HWND hWnd = FindWindowA(BOOK_CLASS_NAME, NULL);
+
     bool hasBook = !book.empty();
-    int itemSel = SendMessage(hBookListBox, LB_GETCURSEL, 0, 0);
-    int itemCount = SendMessage(hBookListBox, LB_GETCOUNT, 0, 0);
+    int itemSel = SendMessage(GetDlgItem(hWnd, ID_BOOK_LISTBOX), LB_GETCURSEL, 0, 0);
+    int itemCount = SendMessage(GetDlgItem(hWnd, ID_BOOK_LISTBOX), LB_GETCOUNT, 0, 0);
     bool hasItem = itemSel != LB_ERR;
 
     std::string title = hasBook ? "Book: " + book : "Book";
-    SetWindowTextA(GetParent(hBookBtnDelList), title.c_str());
+    SetWindowTextA(hWnd, title.c_str());
 
-    EnableWindow(hBookBtnDelList,     hasBook);
-    EnableWindow(hBookEdit,           hasBook);
-    EnableWindow(hBookLabelNewSymbol, hasBook);
-    EnableWindow(hBookBtnUp,          hasBook && hasItem && itemSel > 0);
-    EnableWindow(hBookBtnDown,        hasBook && hasItem && itemSel < itemCount - 1);
+    EnableWindow(GetDlgItem(hWnd, ID_BOOK_DEL_LIST),   hasBook);
+    EnableWindow(GetDlgItem(hWnd, ID_BOOK_EDIT),       hasBook);
+    EnableWindow(GetDlgItem(hWnd, ID_BOOK_NEW_SYMBOL), hasBook);
+    EnableWindow(GetDlgItem(hWnd, ID_BOOK_ITEM_UP),    hasBook && hasItem && itemSel > 0);
+    EnableWindow(GetDlgItem(hWnd, ID_BOOK_ITEM_DOWN),  hasBook && hasItem && itemSel < itemCount - 1);
 }
 
 // ─── Subclass Procs ───────────────────────────────────────────────────────────
@@ -212,6 +224,8 @@ LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
         if (wParam == VK_RETURN && acVisible) {
             int sel = SendMessage(hAutoComplete, LB_GETCURSEL, 0, 0);
             if (sel != LB_ERR && sel < (int)currentResults.size()) {
+                HWND hBookWnd = FindWindowA(BOOK_CLASS_NAME, NULL);
+                HWND hBookEdit = GetDlgItem(hBookWnd, ID_BOOK_EDIT);
                 pendingFullEntry = currentResults[sel];
                 std::string label = Book_DisplayLabel(pendingFullEntry);
                 suppressSearch = true;
@@ -242,6 +256,8 @@ LRESULT CALLBACK AutoCompleteSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LP
     if (msg == WM_LBUTTONUP) {
         int sel = SendMessage(hWnd, LB_GETCURSEL, 0, 0);
         if (sel != LB_ERR && sel < (int)currentResults.size()) {
+            HWND hBookWnd = FindWindowA(BOOK_CLASS_NAME, NULL);
+            HWND hBookEdit = GetDlgItem(hBookWnd, ID_BOOK_EDIT);
             pendingFullEntry = currentResults[sel];
             std::string label = Book_DisplayLabel(pendingFullEntry);
             suppressSearch = true;
@@ -252,7 +268,7 @@ LRESULT CALLBACK AutoCompleteSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LP
             SetFocus(hBookEdit);
             SendMessage(hBookEdit, EM_SETSEL, label.size(), label.size());
             SendMessage(GetParent(hWnd), WM_COMMAND,
-                MAKEWPARAM(ID_BOOK_AUTOCOMPLETE, LBN_DBLCLK), (LPARAM)hWnd);
+                MAKEWPARAM(ID_M_BOOK_AUTOCOMPLETE, LBN_DBLCLK), (LPARAM)hWnd);
         }
     }
     if (msg == WM_NCDESTROY)
@@ -262,20 +278,16 @@ LRESULT CALLBACK AutoCompleteSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LP
 
 // ─── Window Procedure ────────────────────────────────────────────────────────
 
-#define WM_BOOKNEWLIST_START (WM_APP + 100)
-
-static HWND hNewListEdit = NULL;
-
 LRESULT CALLBACK WndProcBookNewList(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
         case WM_CREATE: {
             // Create the edit control and return immediately so WM_CREATE finishes.
             // The window will fully paint its NC area (title bar, border, icons)
             // before WM_BOOKNEWLIST_START arrives, fixing the blank-title glitch.
-            hNewListEdit = CreateWindowA("EDIT", "",
+            CreateWindowA("EDIT", "",
                 WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
                 10, 10, 260 - 28, 24,
-                hWnd, (HMENU)1, GetModuleHandle(NULL), NULL);
+                hWnd, (HMENU)ID_BOOK_NEW_SYMBOL_INPUT, GetModuleHandle(NULL), NULL);
 
             PostMessage(hWnd, WM_BOOKNEWLIST_START, 0, 0);
             break;
@@ -283,18 +295,18 @@ LRESULT CALLBACK WndProcBookNewList(HWND hWnd, UINT message, WPARAM wParam, LPAR
 
         case WM_BOOKNEWLIST_START: {
             // Window is fully created and painted by now — safe to run the modal loop.
-            SetFocus(hNewListEdit);
+            SetFocus(GetDlgItem(hWnd, ID_BOOK_NEW_SYMBOL_INPUT));
 
             MSG dlgMsg;
             char newName[128] = {};
             bool dlgDone = false;
 
             while (!dlgDone && GetMessage(&dlgMsg, NULL, 0, 0)) {
-                if (dlgMsg.hwnd == hNewListEdit
+                if (dlgMsg.hwnd == GetDlgItem(hWnd, ID_BOOK_NEW_SYMBOL_INPUT)
                     && dlgMsg.message == WM_KEYDOWN
                     && dlgMsg.wParam == VK_RETURN)
                 {
-                    GetWindowTextA(hNewListEdit, newName, sizeof(newName));
+                    GetWindowTextA(GetDlgItem(hWnd, ID_BOOK_NEW_SYMBOL_INPUT), newName, sizeof(newName));
                     dlgDone = true;
                 } else if (dlgMsg.message == WM_KEYDOWN && dlgMsg.wParam == VK_ESCAPE) {
                     dlgDone = true;
@@ -305,7 +317,6 @@ LRESULT CALLBACK WndProcBookNewList(HWND hWnd, UINT message, WPARAM wParam, LPAR
                 if (!IsWindow(hWnd)) dlgDone = true;
             }
 
-            hNewListEdit = NULL;
             DestroyWindow(hWnd);
 
             if (strlen(newName) > 0) {
@@ -317,11 +328,14 @@ LRESULT CALLBACK WndProcBookNewList(HWND hWnd, UINT message, WPARAM wParam, LPAR
                     RegSetValueExA(hKey, newName, 0, REG_MULTI_SZ, (const BYTE*)empty, 2);
                     RegCloseKey(hKey);
                 }
+                
+                HWND hBookWnd = FindWindowA(BOOK_CLASS_NAME, NULL);
+                HWND hBookCombo = GetDlgItem(hBookWnd, ID_BOOK_COMBO);
                 Book_LoadAllLists(hBookCombo);
                 int idx = SendMessageA(hBookCombo, CB_FINDSTRINGEXACT, -1, (LPARAM)newName);
                 if (idx != CB_ERR) {
                     SendMessage(hBookCombo, CB_SETCURSEL, idx, 0);
-                    Book_LoadList(newName, hBookListBox);
+                    Book_LoadList(newName);
                     Book_UpdateControlStates();
                 }
             }
@@ -338,7 +352,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
             int margin = 8;
 
-            hBookCombo = CreateWindowA("COMBOBOX", NULL,
+            CreateWindowA("COMBOBOX", NULL,
                 WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
                 margin, margin, 166, 193,
                 hWnd, (HMENU)ID_BOOK_COMBO, hInst, NULL);
@@ -348,39 +362,39 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                 margin + 171, margin, 80, 24,
                 hWnd, (HMENU)ID_BOOK_NEW_LIST, hInst, NULL);
 
-            hBookBtnDelList = CreateWindowA("BUTTON", "Delete Book",
+            CreateWindowA("BUTTON", "Delete Book",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_OWNERDRAW,
                 margin + 259, margin, 90, 24,
                 hWnd, (HMENU)ID_BOOK_DEL_LIST, hInst, NULL);
 
-            hBookListBox = CreateWindowA("LISTBOX", NULL,
+            CreateWindowA("LISTBOX", NULL,
                 WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL | LBS_NOTIFY,
                 margin, margin + 32, 313 - margin, 130,
                 hWnd, (HMENU)ID_BOOK_LISTBOX, hInst, NULL);
 
-            SetWindowSubclass(hBookListBox, ListBoxSubclassProc, 3, 0);
+            SetWindowSubclass(GetDlgItem(hWnd, ID_BOOK_LISTBOX), ListBoxSubclassProc, 3, 0);
 
-            hBookBtnUp = CreateWindowW(L"BUTTON", L"▲",
+            CreateWindowW(L"BUTTON", L"▲",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_OWNERDRAW,
                 320, margin + 32, 36, 62,
                 hWnd, (HMENU)ID_BOOK_ITEM_UP, hInst, NULL);
 
-            hBookBtnDown = CreateWindowW(L"BUTTON", L"▼",
+            CreateWindowW(L"BUTTON", L"▼",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | BS_OWNERDRAW,
                 320, margin + 32 + 68, 36, 62,
                 hWnd, (HMENU)ID_BOOK_ITEM_DOWN, hInst, NULL);
 
-            hBookLabelNewSymbol = CreateWindowA("STATIC", "New Symbol:",
+            CreateWindowA("STATIC", "New Symbol:",
                 WS_CHILD | WS_VISIBLE,
                 margin, margin + 174, 90, 16,
-                hWnd, NULL, hInst, NULL);
+                hWnd, (HMENU)ID_BOOK_NEW_SYMBOL, hInst, NULL);
 
-            hBookEdit = CreateWindowA("EDIT", NULL,
+            CreateWindowA("EDIT", NULL,
                 WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | ES_UPPERCASE,
                 margin + 95, margin + 170, 254, 24,
                 hWnd, (HMENU)ID_BOOK_EDIT, hInst, NULL);
 
-            SetWindowSubclass(hBookEdit, EditSubclassProc, 2, 0);
+            SetWindowSubclass(GetDlgItem(hWnd, ID_BOOK_EDIT), EditSubclassProc, 2, 0);
 
             hAutoComplete = CreateWindowExA(
                 WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
@@ -390,14 +404,14 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                 hWnd, NULL, hInst, NULL);
             SetWindowSubclass(hAutoComplete, AutoCompleteSubclassProc, 1, 0);
             ShowWindow(hAutoComplete, SW_HIDE);
+            
+            Book_LoadAllLists(GetDlgItem(hWnd, ID_BOOK_COMBO));
 
-            Book_LoadAllLists(hBookCombo);
-
-            if (SendMessage(hBookCombo, CB_GETCOUNT, 0, 0) > 0)
-                SendMessage(hBookCombo, CB_SETCURSEL, 0, 0);
+            if (SendMessage(GetDlgItem(hWnd, ID_BOOK_COMBO), CB_GETCOUNT, 0, 0) > 0)
+                SendMessage(GetDlgItem(hWnd, ID_BOOK_COMBO), CB_SETCURSEL, 0, 0);
 
             std::string first = Book_GetSelectedBook();
-            if (!first.empty()) Book_LoadList(first.c_str(), hBookListBox);
+            if (!first.empty()) Book_LoadList(first.c_str());
 
             Book_UpdateControlStates();
 
@@ -419,6 +433,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             switch (LOWORD(wParam)) {
 
             case ID_BOOK_ITEM_UP: {
+                HWND hBookListBox = GetDlgItem(hWnd, ID_BOOK_LISTBOX);
                 int sel = SendMessage(hBookListBox, LB_GETCURSEL, 0, 0);
                 if (sel == LB_ERR || sel == 0) break;
                 char item[256] = {};
@@ -433,6 +448,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             }
 
             case ID_BOOK_ITEM_DOWN: {
+                HWND hBookListBox = GetDlgItem(hWnd, ID_BOOK_LISTBOX);
                 int sel = SendMessage(hBookListBox, LB_GETCURSEL, 0, 0);
                 int count = SendMessage(hBookListBox, LB_GETCOUNT, 0, 0);
                 if (sel == LB_ERR || sel == count - 1) break;
@@ -450,7 +466,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
             case ID_BOOK_COMBO:
                 if (HIWORD(wParam) == CBN_SELCHANGE) {
                     std::string name = Book_GetSelectedBook();
-                    if (!name.empty()) Book_LoadList(name.c_str(), hBookListBox);
+                    if (!name.empty()) Book_LoadList(name.c_str());
                     Book_UpdateControlStates();
                 }
                 break;
@@ -466,11 +482,11 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                 std::string msg = "Delete book \"" + name + "\"?";
                 if (MessageBoxA(hWnd, msg.c_str(), "Confirm", MB_YESNO | MB_ICONQUESTION) == IDYES) {
                     Book_DeleteList(name.c_str());
-                    Book_LoadAllLists(hBookCombo);
-                    SendMessage(hBookListBox, LB_RESETCONTENT, 0, 0);
+                    Book_LoadAllLists(GetDlgItem(hWnd, ID_BOOK_COMBO));
+                    SendMessage(GetDlgItem(hWnd, ID_BOOK_LISTBOX), LB_RESETCONTENT, 0, 0);
                     bookItems.clear();
                     std::string next = Book_GetSelectedBook();
-                    if (!next.empty()) Book_LoadList(next.c_str(), hBookListBox);
+                    if (!next.empty()) Book_LoadList(next.c_str());
                     Book_UpdateControlStates();
                 }
                 break;
@@ -478,7 +494,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 
             case ID_BOOK_ADD_ITEM: {
                 char item[256] = {};
-                GetWindowTextA(hBookEdit, item, sizeof(item));
+                GetWindowTextA(GetDlgItem(hWnd, ID_BOOK_EDIT), item, sizeof(item));
                 if (strlen(item) == 0) break;
 
                 std::string name = Book_GetSelectedBook();
@@ -500,12 +516,12 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 
                 // Check for duplicates by display label
                 std::string displayLabel = Book_DisplayLabel(toStore);
-                int exists = SendMessageA(hBookListBox, LB_FINDSTRINGEXACT, -1, (LPARAM)displayLabel.c_str());
+                int exists = SendMessageA(GetDlgItem(hWnd, ID_BOOK_LISTBOX), LB_FINDSTRINGEXACT, -1, (LPARAM)displayLabel.c_str());
                 if (exists == LB_ERR) {
-                    SendMessageA(hBookListBox, LB_ADDSTRING, 0, (LPARAM)displayLabel.c_str());
+                    SendMessageA(GetDlgItem(hWnd, ID_BOOK_LISTBOX), LB_ADDSTRING, 0, (LPARAM)displayLabel.c_str());
                     bookItems.push_back(toStore);
                     Book_SaveFullList(name.c_str(), bookItems);
-                    SetWindowTextA(hBookEdit, "");
+                    SetWindowTextA(GetDlgItem(hWnd, ID_BOOK_EDIT), "");
                     ShowWindow(hAutoComplete, SW_HIDE);
                     Book_UpdateControlStates();
                 }
@@ -517,7 +533,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                     if (suppressSearch) break;
                     pendingFullEntry = ""; // clear pending when user types manually
                     char text[256] = {};
-                    GetWindowTextA(hBookEdit, text, sizeof(text));
+                    GetWindowTextA(GetDlgItem(hWnd, ID_BOOK_EDIT), text, sizeof(text));
 
                     std::string query = text;
                     auto dot = query.find('.');
@@ -530,7 +546,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                             SendMessage(hAutoComplete, LB_RESETCONTENT, 0, 0);
                             SendMessageA(hAutoComplete, LB_ADDSTRING, 0, (LPARAM)"Gateway is disconnected!");
                             RECT r;
-                            GetWindowRect(hBookEdit, &r);
+                            GetWindowRect(GetDlgItem(hWnd, ID_BOOK_EDIT), &r);
                             int itemHeight = SendMessage(hAutoComplete, LB_GETITEMHEIGHT, 0, 0);
                             SetWindowPos(hAutoComplete, HWND_TOP,
                                 r.left, r.bottom, r.right - r.left, itemHeight + 4,
@@ -554,7 +570,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
                     Book_UpdateControlStates();
                 break;
 
-            case ID_BOOK_AUTOCOMPLETE:
+            case ID_M_BOOK_AUTOCOMPLETE:
                 if (HIWORD(wParam) == LBN_DBLCLK) {
                     SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(ID_BOOK_ADD_ITEM, 0), 0);
                 }
@@ -569,7 +585,7 @@ LRESULT CALLBACK WndProcBook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         case WM_SYMBOL_RESULTS: {
             if (showingOffline) break;
             char text[256] = {};
-            GetWindowTextA(hBookEdit, text, sizeof(text));
+            GetWindowTextA(GetDlgItem(hWnd, ID_BOOK_EDIT), text, sizeof(text));
             std::string query = text;
 
             auto results = api.getSymbolResults();

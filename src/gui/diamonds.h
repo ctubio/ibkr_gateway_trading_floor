@@ -4,8 +4,6 @@ void StartDiamonds() { StartGenericWindow(DIAMONDS_CLASS_NAME, "Diamonds", L"IBK
 
 #define ID_DIAMONDS_RESULTS_LIST 7001
 
-static HWND hDiamondsResults = NULL;
-
 // ── Column definitions ────────────────────────────────────────────────────────
 
 struct DiamondCol { const char* header; int width; int fmt; };
@@ -23,6 +21,8 @@ static const int DIAMOND_COL_COUNT = (int)(sizeof(diamondCols) / sizeof(diamondC
 // ── Repopulate ────────────────────────────────────────────────────────────────
 
 static void Diamonds_Repopulate(HWND hWnd) {
+    HWND hDiamondsResults = GetDlgItem(hWnd, ID_DIAMONDS_RESULTS_LIST);
+
     SendMessage(hDiamondsResults, WM_SETREDRAW, FALSE, 0);
     ListView_DeleteAllItems(hDiamondsResults);
 
@@ -84,7 +84,7 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
     case WM_CREATE: {
         HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
 
-        hDiamondsResults = CreateWindowExA(
+        CreateWindowExA(
             WS_EX_CLIENTEDGE, "SysListView32", "",
             WS_CHILD | WS_VISIBLE | WS_BORDER |
             LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER,
@@ -93,7 +93,7 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 
         DWORD exStyle = LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER;
         if (Settings_DarkMode()) exStyle |= LVS_EX_GRIDLINES;
-        ListView_SetExtendedListViewStyle(hDiamondsResults, exStyle);
+        ListView_SetExtendedListViewStyle(GetDlgItem(hWnd, ID_DIAMONDS_RESULTS_LIST), exStyle);
 
         LVCOLUMNA lvc = {};
         lvc.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT;
@@ -101,7 +101,7 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
             lvc.cx      = diamondCols[i].width;
             lvc.pszText = (LPSTR)diamondCols[i].header;
             lvc.fmt     = diamondCols[i].fmt;
-            ListView_InsertColumn(hDiamondsResults, i, &lvc);
+            ListView_InsertColumn(GetDlgItem(hWnd, ID_DIAMONDS_RESULTS_LIST), i, &lvc);
         }
 
         api.setDiamondsWindow(hWnd);
@@ -111,15 +111,15 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
     }
 
     case WM_SIZE: {
-        if (!hDiamondsResults) return 0;
+        if (!GetDlgItem(hWnd, ID_DIAMONDS_RESULTS_LIST)) return 0;
         RECT rc;
         GetClientRect(hWnd, &rc);
-        MoveWindow(hDiamondsResults, 0, 0, rc.right, rc.bottom, TRUE);
+        MoveWindow(GetDlgItem(hWnd, ID_DIAMONDS_RESULTS_LIST), 0, 0, rc.right, rc.bottom, TRUE);
         break;
     }
 
     case WM_DIAMONDS_UPDATE: {
-        if (hDiamondsResults) Diamonds_Repopulate(hWnd);
+        if (GetDlgItem(hWnd, ID_DIAMONDS_RESULTS_LIST)) Diamonds_Repopulate(hWnd);
         break;
     }
 
@@ -132,11 +132,11 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
             int row = act->iItem;
             if (row != -1) {
                 char text[256];
-                ListView_GetItemText(hDiamondsResults, row, 0, text, sizeof(text));
+                ListView_GetItemText(GetDlgItem(hWnd, ID_DIAMONDS_RESULTS_LIST), row, 0, text, sizeof(text));
                 LVITEMA item{};
                 item.mask = LVIF_PARAM;
                 item.iItem = row;
-                ListView_GetItem(hDiamondsResults, &item);
+                ListView_GetItem(GetDlgItem(hWnd, ID_DIAMONDS_RESULTS_LIST), &item);
                 int conId = (int)item.lParam;
                 
                 StartTimesales(text, conId); // Spawn multi-instance immediately
@@ -160,7 +160,7 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
                 case CDDS_ITEMPREPAINT | CDDS_SUBITEM: {
                     if (cd->iSubItem == 3) { // Daily PnL — green/red
                         char buf[32] = {};
-                        ListView_GetItemText(hDiamondsResults, (int)cd->nmcd.dwItemSpec, 3, buf, sizeof(buf));
+                        ListView_GetItemText(GetDlgItem(hWnd, ID_DIAMONDS_RESULTS_LIST), (int)cd->nmcd.dwItemSpec, 3, buf, sizeof(buf));
                         double val = atof(buf);
                         if (val > 0) cd->clrText = RGB(80, 200, 120);
                         else if (val < 0) cd->clrText = RGB(220, 80, 80);
@@ -175,11 +175,11 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
     }
 
     case WM_API_UPDATE: {
-        if (hDiamondsResults) {
+        if (GetDlgItem(hWnd, ID_DIAMONDS_RESULTS_LIST)) {
             if (api.isMarketDataConnected() && api.isTradingConnected()) {
                 Diamonds_Repopulate(hWnd);
             } else {
-                ListView_DeleteAllItems(hDiamondsResults);
+                ListView_DeleteAllItems(GetDlgItem(hWnd, ID_DIAMONDS_RESULTS_LIST));
             }
         }
         break;
@@ -187,7 +187,6 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
     
     case WM_DESTROY:
         api.unsetDiamondsWindow();
-        hDiamondsResults = NULL;
         api.removeApiUpdateWindow(hWnd);
         break;
     }

@@ -2,6 +2,8 @@
 
 void StartOrders() { StartGenericWindow(ORDERS_CLASS_NAME, "Orders", L"IBKRGatewayClient.Orders", 781, 240); }
 
+#define ID_ORDERS_LIST          9003
+
 // ── Column definitions ────────────────────────────────────────────────────────
 
 struct OrderCol { const char* header; int width; };
@@ -111,7 +113,7 @@ LRESULT CALLBACK WndProcOrders(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
             WS_EX_CLIENTEDGE, "SysListView32", "",
             lvStyle,
             0, 0, 760, 420,
-            hWnd, (HMENU)1, hInst, NULL);
+            hWnd, (HMENU)ID_ORDERS_LIST, hInst, NULL);
 
         // Full-row selection + double-buffer to reduce flicker
         DWORD exStyle = LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER;
@@ -134,7 +136,7 @@ LRESULT CALLBACK WndProcOrders(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
     }
 
     case WM_SIZE: {
-        HWND hList = GetDlgItem(hWnd, 1);
+        HWND hList = GetDlgItem(hWnd, ID_ORDERS_LIST);
         if (!hList) return 0;
         RECT rc;
         GetClientRect(hWnd, &rc);
@@ -143,7 +145,7 @@ LRESULT CALLBACK WndProcOrders(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
     }
 
     case WM_ORDERS_UPDATE: {
-        HWND hList = GetDlgItem(hWnd, 1);
+        HWND hList = GetDlgItem(hWnd, ID_ORDERS_LIST);
         if (hList) Orders_Repopulate(hList);
         break;
     }
@@ -172,16 +174,15 @@ LRESULT CALLBACK WndProcOrders(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
                     if (cd->iSubItem == 8) { // Status column — color by state
                         // Get status text
                         char statusBuf[64] = {};
-                        HWND hList = GetDlgItem(hWnd, 1);
-                        ListView_GetItemText(hList, (int)cd->nmcd.dwItemSpec, 8,
-                                            statusBuf, sizeof(statusBuf));
+                        HWND hList = GetDlgItem(hWnd, ID_ORDERS_LIST);
+                        ListView_GetItemText(hList, (int)cd->nmcd.dwItemSpec, 8, statusBuf, sizeof(statusBuf));
                         cd->clrText = Orders_StatusColor(statusBuf, dark);
                         if (dark) cd->clrTextBk = (cd->nmcd.dwItemSpec % 2 == 0) ? DM_BG : DM_BG2;
                         return CDRF_NEWFONT;
                     }
                     if (cd->iSubItem == 2) { // Action — BUY green, SELL red
                         char buf[16] = {};
-                        HWND hList = GetDlgItem(hWnd, 1);
+                        HWND hList = GetDlgItem(hWnd, ID_ORDERS_LIST);
                         ListView_GetItemText(hList, (int)cd->nmcd.dwItemSpec, 2, buf, sizeof(buf));
                         if (strcmp(buf, "BUY") == 0)
                             cd->clrText = RGB(80, 200, 120);
@@ -199,7 +200,7 @@ LRESULT CALLBACK WndProcOrders(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
 
 
     case WM_API_UPDATE: {
-        HWND hList = GetDlgItem(hWnd, 1);
+        HWND hList = GetDlgItem(hWnd, ID_ORDERS_LIST);
         if (hList) {
             if (api.isMarketDataConnected() && api.isTradingConnected()) {
                 Orders_Repopulate(hList);
