@@ -118,8 +118,9 @@ static LRESULT CALLBACK EditField_SubclassProc(HWND hWnd, UINT message, WPARAM w
             if (ctx && ctx->hQtyEdit) {
                 HWND hNext = (hWnd == ctx->hPriceEdit) ? ctx->hQtyEdit : ctx->hPriceEdit;
                 SetFocus(hNext);
-                // Auto-select text when focusing to make typing over it easy
-                SendMessageA(hNext, EM_SETSEL, 0, -1);
+                // Place caret at end, no selection
+                int len = GetWindowTextLengthA(hNext);
+                SendMessageA(hNext, EM_SETSEL, len, len);
             }
             return 0;
         }
@@ -127,7 +128,7 @@ static LRESULT CALLBACK EditField_SubclassProc(HWND hWnd, UINT message, WPARAM w
         if (wParam == VK_UP || wParam == VK_DOWN) {
             char buf[32] = {};
             GetWindowTextA(hWnd, buf, sizeof(buf));
-            
+
             double val  = atof(buf);
             double step = (uIdSubclass == 1) ? 0.01 : 1.0;  // price vs qty
             if (wParam == VK_UP) {
@@ -141,9 +142,10 @@ static LRESULT CALLBACK EditField_SubclassProc(HWND hWnd, UINT message, WPARAM w
 
             snprintf(buf, sizeof(buf), (uIdSubclass == 1) ? "%.2f" : "%.0f", val);
             SetWindowTextA(hWnd, buf);
-            
-            // Re-select the text so rapid pressing keeps it highlighted
-            SendMessageA(hWnd, EM_SETSEL, 0, -1);
+
+            // Place caret at end, no selection
+            int len = GetWindowTextLengthA(hWnd);
+            SendMessageA(hWnd, EM_SETSEL, len, len);
             return 0;
         }
     }
@@ -282,7 +284,6 @@ static void Orders_ShowEditPopup(HWND hParent, const TradingAPI::OrderInfo& orde
     if (order.price > 0) snprintf(buf, sizeof(buf), "%.2f", order.price);
     else                  snprintf(buf, sizeof(buf), "0.00");
     SetWindowTextA(ctx->hPriceEdit, buf);
-    SendMessageA(ctx->hPriceEdit, EM_SETSEL, 0, -1);
 
     snprintf(buf, sizeof(buf), "%.0f", order.totalQty);
     if (ctx->hQtyEdit)
