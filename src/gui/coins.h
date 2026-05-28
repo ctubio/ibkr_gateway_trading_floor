@@ -444,6 +444,24 @@ LRESULT CALLBACK WndProcCoins(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPa
         break;
     }
 
+    case WM_CTLCOLORSTATIC: {
+        HDC  hdc = (HDC)wParam;
+        HWND hw  = (HWND)lParam;
+        COLORREF clr = GetCtrlColor(hw);
+        if (clr == COINS_CLR_THEME) {
+            // Delegate entirely to the shared dark/light mode handler
+            return HandleDarkModeMessages(hWnd, message, wParam, lParam);
+        }
+        SetTextColor(hdc, clr);
+        if (Settings_DarkMode()) {
+            SetBkColor(hdc, DM_BG);
+            return (LRESULT)hDarkBrush;
+        } else {
+            SetBkColor(hdc, GetSysColor(COLOR_BTNFACE));
+            return (LRESULT)GetSysColorBrush(COLOR_BTNFACE);
+        }
+    }
+
     case WM_COMMAND: {
         WORD id  = LOWORD(wParam);
         WORD evt = HIWORD(wParam);
