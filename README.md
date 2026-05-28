@@ -13,8 +13,9 @@ This application is a modern desktop trading companion built on the Interactive 
 - open positions with P&L analytics
 - order tracking and status coloring
 - symbol watchlists, book management, and quick search
-- news headlines with article preview support
-- tick-by-tick Time & Sales with filtering
+- tick-by-tick Time & Sales with filtering and customizable split-view layout
+- news headlines with article preview and RTF formatting support
+- live account summary with optional Text-to-Speech (TTS) alerts
 - flexible multi-window layout with persistent state
 - dark mode, sound alerts, and debug logging
 
@@ -42,7 +43,7 @@ This application is a modern desktop trading companion built on the Interactive 
 
 Displays live account summary values from IBKR:
 
-- Net Liquidation Value
+- Net Liquidation Value with optional Text-to-Speech (TTS) audio alerts
 - Total Cash and currency balances
 - Buying Power and Available Funds
 - Gross Position Value
@@ -97,7 +98,7 @@ News viewer with symbol-specific headlines:
 
 - provider code and headline display
 - historical + live news for selected symbols
-- double-click article download and preview
+- double-click article download with HTML-to-RTF conversion for rich text preview
 - supports plain text article rendering in RichEdit
 
 ### Time & Sales
