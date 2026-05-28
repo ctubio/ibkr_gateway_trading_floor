@@ -6,127 +6,102 @@ A lightweight Windows tray application that connects to Interactive Brokers Gate
 
 ## Overview
 
-This application is a modern desktop trading companion built on the Interactive Brokers C++ API. It is designed to work with **IBKR Gateway** (not Trader Workstation) and provides:
+This application is a modern desktop trading companion built on the Interactive Brokers C++ API. It is designed to work with **IBKR Gateway** (not Trader Workstation) and provides a modular, multi-window environment for professional traders.
 
-- real-time market data and trade updates
-- live account summary and margin metrics
-- open positions with P&L analytics
-- order tracking and status coloring
-- symbol watchlists, book management, and quick search
-- tick-by-tick Time & Sales with filtering and customizable split-view layout
-- news headlines with article preview and RTF formatting support
-- live account summary with optional Text-to-Speech (TTS) alerts
-- flexible multi-window layout with persistent state
-- dark mode, sound alerts, and debug logging
+### Core Capabilities:
+- **Real-time Market Data**: Live quotes, tick-by-tick Time & Sales, and symbol watchlists.
+- **Account Intelligence**: Live margin metrics, Net Liquidation Value with optional Text-to-Speech (TTS) alerts, and detailed P&L analytics.
+- **Portfolio Management**: Comprehensive position tracking with dividend data and 52-week range analysis.
+- **Order Execution Tracking**: Real-time order status monitoring with intuitive color-coding and in-place modifications.
+- **Information Hub**: Symbol-specific news headlines with provider filtering, HTML-to-RTF article preview, and a centralized watchlist manager (Book).
+- **User-Friendly UI**: Font zoom support for ListViews, split-panel Time & Sales, and auto-complete symbol entry in Book.
+- **Robust Infrastructure**: Auto-reconnecting watchdog, persistent registry-based settings, and a system-tray-first design.
 
 ## Key Highlights
 
-- **Tray-icon**: runs from the system tray with a connected/disconnected icon and always-on-top menu options for each window.
-- **Auto-connect watchdog**: monitors connection status and reconnects to IBKR Gateway automatically.
-- **IBKR Gateway support**: connects to `127.0.0.1:4001` using the IBKR socket API.
-- **Persistent settings**: saved under `HKEY_CURRENT_USER\Software\ibkr-gateway-trading-floor`.
-- **Multi-window trade desk**: open Dashboard, Coins, Diamonds, Orders, Ticker, News, Time & Sales, Book, Settings, and Debug Log windows.
-- **Custom watchlists**: store multiple symbol watchlists in the registry and reuse them across sessions.
-- **Dark mode + sounds**: optional dark theme and notification sounds for connection events.
+- **Tray-Centric Design**: Runs primarily from the system tray with dynamic status icons (Connected/Disconnected) and a context menu for quick window management.
+- **Auto-Connect Watchdog**: A dedicated background timer monitors the connection to `127.0.0.1:4001` and automatically restores the session if the Gateway drops.
+- **Modular Window Architecture**: A "Trading Floor" layout where 10+ independent windows (Dashboard, Coins, Diamonds, Orders, Ticker, News, Time & Sales, Book, Settings, Debug Log) can be arranged, persisted, and restored.
+- **Advanced Watchlists**: Create and manage named symbol lists in the **Book** module, which are then shared across the Ticker, News, and Time & Sales windows.
+- **Accessibility & Alerts**: Integrated Windows SAPI for NetLiq voice alerts and custom sound notifications for critical trading events.
+- **Visual Customization**: Full Dark Mode support, list view font zooming, and high-contrast color-coding for P&L and order statuses.
 
 ## Core Modules
 
-### Dashboard
+### 🖥️ Dashboard
+The central command hub of the application:
+- **Connection Status**: Real-time monitoring of Market Data and Trading sessions.
+- **Quick Launch**: One-click buttons to open any module in the suite.
+- **Window Management**: Dynamic menu to toggle "Always On Top" for active Time & Sales windows.
+- **Session Control**: Manual Connect/Disconnect overrides.
 
-- connection summary for Market Data and Trading
-- account number display
-- tray icon state updates
-- quick buttons to open every major window
-- periodic watchdog timer that keeps the app connected
+### 💰 Coins (Account Summary)
+High-level financial health monitoring:
+- **Net Liquidation Value**: Prominent display with optional **TTS audio alerts** for rapid value changes.
+- **Liquidity Metrics**: Live Buying Power, Available Funds, and Excess Liquidity.
+- **Margin Tracking**: Real-time Initial and Maintenance Margin requirements.
+- **P&L Suite**: Daily, Unrealized, and Realized P&L with green/red color-coding.
 
-### Coins (Account Summary)
+### 💎 Diamonds (Portfolio)
+Deep-dive position analysis:
+- **Live Pricing**: Current bid/ask/last prices for all held instruments.
+- **Performance**: Daily P&L, change %, and unrealized P&L.
+- **Dividends**: Dividend yield, next dividend date, and annual dividend amounts.
+- **Market Context**: 52-week range percentage and market value relative to Net Liquidation.
 
-Displays live account summary values from IBKR:
+### 📝 Orders
+Precision order tracking and management:
+- **Visual Status**: Color-coded rows for instant recognition:
+  - 🟢 **Filled** | 🟡 **Partially Filled** | 🔵 **Submitted** | ⚪ **Cancelled/Inactive**
+- **Interactive Management**: In-place modification of order price and quantity.
+- **Audit Trail**: Sorted by status and timestamp to prioritize the most recent updates.
 
-- Net Liquidation Value with optional Text-to-Speech (TTS) audio alerts
-- Total Cash and currency balances
-- Buying Power and Available Funds
-- Gross Position Value
-- Excess Liquidity
-- Initial and Maintenance Margin Requirements
-- Daily, Unrealized, and Realized P&L
+### 📈 Ticker & Levels
+Real-time quote monitoring with saved watchlists and fast table navigation:
+- **Comprehensive Data**: Last price, bid/ask sizes, change %, dividend yield, dividend date, and annual dividend.
+- **Extended Metrics**: Fundamental tick updates, 52-week ranges, and market-cap style insights.
+- **Saved Watchlists**: Select named symbol sets from the Book and reuse them instantly.
+- **Live Placeholder Rows**: Symbols appear immediately while market data subscriptions are still initializing.
+- **Zoomable Tables**: Use `Ctrl + Mouse Wheel` on list views to resize text for readability.
 
-### Diamonds (Portfolio)
+### 📖 Book (Watchlist Manager)
+The database for your reusable trading symbols:
+- **CRUD Operations**: Create, rename, and delete named watchlists.
+- **Symbol Auto-Complete**: Add instruments quickly using the inline searchable symbol entry box.
+- **Keyboard-Friendly Editing**: Use Delete to remove list items, and Up/Down buttons to reorder symbols.
+- **Registry Persistence**: All lists are stored under the Windows Registry and recovered across restarts.
+- **Shared Workflow**: Feeds the Ticker, News, and Time & Sales windows with the same saved symbol lists.
 
-Portfolio window with position details:
+### 📰 News
+Contextual market intelligence with provider filtering and article preview:
+- **Symbol-Specific Request**: Select a symbol from a saved list and request news directly for that contract.
+- **Provider Filter**: Narrow headlines by news provider or show all available sources.
+- **Persistent State**: Restores the last selected news list, last selected symbol, and provider filter across sessions.
+- **Rich Article Preview**: Downloads news bodies and converts basic HTML into RTF for clean RichEdit display.
+- **Binary/PDF Handling**: Detects unsupported article formats and notifies the user when inline preview is unavailable.
 
-- instrument symbol
-- quantity and average price
-- current bid/ask/last price
-- daily P&L and change percentage
-- unrealized P&L and unrealized P&L %
-- market value and percent of net liquidation
-- dividend yield, next dividend date, and annual dividend
+### ⏱️ Time & Sales
+High-frequency trade monitoring with split-panel filtering and symbol search:
+- **Tick-by-Tick Feed**: Live trade price, size, time, and exchange for the active symbol.
+- **Filtered Views**: Toggle between full trades, top 100, and top 1000 size filters.
+- **Split Panel Layout**: Supports multiple synchronized panes for detailed trade inspection.
+- **Multi-Window Support**: Open many Time & Sales sessions at once for different instruments.
+- **Symbol Search Popup**: Rapidly look up symbols and open a new Time & Sales window from the search dialog.
 
-### Orders
+### ⚙️ Settings
+Personalized application configuration with immediate feedback:
+- **Gateway Automation**: Auto-start IBKR Gateway on launch and optionally kill it on exit.
+- **Dark Mode**: Applies instantly across all windows with a full repaint for UI consistency.
+- **Sound Notifications**: Enable or disable global event sounds from one place.
+- **Debug Log Access**: Open the live debug console directly from Settings.
+- **Registry Backed**: Saves Dark Mode, sound, auto-gateway, and kill-on-exit preferences to the registry.
 
-Tracks open and completed orders with rich status data:
-
-- time, symbol, action, type, quantity
-- filled quantity and average fill price
-- status coloring for filled/partial/cancelled states
-- exchange and price details
-- sorted primarily by status and secondarily by newest updates
-
-### Ticker & Levels
-
-Live quote watchlist support:
-
-- last price, bid/ask, and sizes
-- change % from previous close
-- dividend yield and next dividend details
-- fundamental tick updates for 52-week range and market cap
-- custom watchlist subscription through saved book lists
-
-### Book (Symbol Watchlist)
-
-Manage reusable watchlists:
-
-- create and delete named lists
-- add and remove symbols
-- persist lists across restarts
-- use saved lists for Ticker, News, and Time & Sales workflows
-
-### News
-
-News viewer with symbol-specific headlines:
-
-- provider code and headline display
-- historical + live news for selected symbols
-- double-click article download with HTML-to-RTF conversion for rich text preview
-- supports plain text article rendering in RichEdit
-
-### Time & Sales
-
-Tick-by-tick trade feed per symbol:
-
-- live trade price, size, time, and exchange
-- filtered views for large trades (size >=100 and >=1000)
-- supports multiple open Time & Sales windows
-- symbol search popup for quick instrument selection
-
-### Settings
-
-Persistent application settings saved to the registry:
-
-- Auto-start IBKR Gateway
-- Kill Gateway on exit
-- Dark mode
-- Play sounds
-- Debug log access
-
-### Debug Log
-
-Internal runtime diagnostics and API event logging:
-
-- captures heartbeat, connection, API error, and message events
-- displays buffered logs while the window is closed
-- useful for troubleshooting connectivity and IBKR message flow
+### 🐞 Debug Log
+Runtime diagnostics and transparency for deeper troubleshooting:
+- **Live Event Stream**: Captures real-time API callbacks, connection state, and internal debug messages.
+- **Buffered Flush**: Preserves messages generated before the window opens and displays them on launch.
+- **Topmost Window**: The debug log can be displayed as an always-on-top diagnostics pane.
+- **Developer Insights**: Ideal for tracking connection failures, symbol search results, and news requests.
 
 ## Requirements
 
