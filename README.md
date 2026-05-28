@@ -136,7 +136,7 @@ HKEY_CURRENT_USER\Software\ibkr-gateway-trading-floor
 
 The application does not create any configuration files in the filesystem; it stores its settings only in the Windows Registry.
 
-The executable is portable and can be placed anywhere on disk. There is no required installation folder — `Trading-Floor.exe` may be run from any directory.
+The executable is portable and can be placed anywhere on disk. There is no required installation folder. `Trading-Floor.exe` may be run from any directory.
 
 Saved state includes:
 
@@ -175,9 +175,9 @@ make
 
 The build process bundles several internal components:
 
-- `lib/CppClient/` — IBKR TWS C++ API SDK
-- `lib/protobuf/` — Protobuf and Abseil C++ support
-- `lib/IntelRDFPMathLib20U4/` — precise decimal arithmetic
+- `lib/CppClient/`: IBKR TWS C++ API SDK
+- `lib/protobuf/`: Protobuf and Abseil C++ support
+- `lib/IntelRDFPMathLib20U4/`: precise decimal arithmetic
 
 ## Architecture
 
