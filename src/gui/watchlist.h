@@ -232,9 +232,7 @@ LRESULT CALLBACK WndProcWatchlist(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         ApplyListViewFont(hWatchlistList, WatchlistZoomData.hFont, WatchlistZoomData.fontSize);
         SetWindowSubclass(hWatchlistList, ListViewZoomProc, 0, (DWORD_PTR)&WatchlistZoomData);
 
-        DWORD exStyle = LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER;
-        if (Settings_DarkMode()) exStyle |= LVS_EX_GRIDLINES;
-        ListView_SetExtendedListViewStyle(hWatchlistList, exStyle);
+        ListView_SetExtendedListViewStyle(hWatchlistList, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
 
         LVCOLUMNA lvc = {};
         lvc.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT;

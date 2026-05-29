@@ -243,9 +243,7 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
         ApplyListViewFont(hList, DiamondsZoomData.hFont, DiamondsZoomData.fontSize);
         SetWindowSubclass(hList, ListViewZoomProc, 0, (DWORD_PTR)&DiamondsZoomData);
 
-        DWORD exStyle = LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER;
-        if (Settings_DarkMode()) exStyle |= LVS_EX_GRIDLINES;
-        ListView_SetExtendedListViewStyle(hList, exStyle);
+        ListView_SetExtendedListViewStyle(hList, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
 
         LVCOLUMNA lvc = {};
         lvc.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT;
@@ -356,7 +354,8 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
                     if (cd->iSubItem == DCOL_CHGPCT    ||
                         cd->iSubItem == DCOL_DAILYPNL  ||
                         cd->iSubItem == DCOL_UNREALIZED_PL ||
-                        cd->iSubItem == DCOL_UNREALIZED_PL_PCT)
+                        cd->iSubItem == DCOL_UNREALIZED_PL_PCT||
+                        cd->iSubItem == DCOL_POSITION)
                     {
                         HWND hList = GetDlgItem(hWnd, ID_DIAMONDS_RESULTS_LIST);
                         char buf[32] = {};
@@ -367,9 +366,28 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
                         // explicit avoids any locale-specific atof surprises.
                         if (strcmp(buf, DIAMONDS_NO_DATA) != 0 && buf[0] != '\0') {
                             double val = atof(buf);
-                            if      (val > 0.0) cd->clrText = RGB(80, 200, 120);
+                            if      (val >= 0.0) cd->clrText = RGB(80, 200, 120);
                             else if (val < 0.0) cd->clrText = RGB(220, 80, 80);
                         }
+                        if (dark) cd->clrTextBk = (cd->nmcd.dwItemSpec % 2 == 0) ? DM_BG : DM_BG2;
+                        return CDRF_NEWFONT;
+                    }
+                    if (cd->iSubItem == DCOL_AVGPRICE    ||
+                        cd->iSubItem == DCOL_MKTVAL)
+                    {
+                        if (dark) {
+                            cd->clrTextBk = (cd->nmcd.dwItemSpec % 2 == 0) ? DM_BG : DM_BG2;
+                            cd->clrText   = DM_TEXT;
+                        } else {
+                            cd->clrTextBk = (cd->nmcd.dwItemSpec % 2 == 0) ? GetSysColor(COLOR_WINDOW) : RGB(245, 245, 245);
+                            cd->clrText   = LM_TEXT;
+                        }
+                        return CDRF_NEWFONT;
+                    }
+                    if (cd->iSubItem == DCOL_ASKSIZE    ||
+                        cd->iSubItem == DCOL_BIDSIZE)
+                    {
+                        cd->clrText = RGB(51, 146, 255);
                         if (dark) cd->clrTextBk = (cd->nmcd.dwItemSpec % 2 == 0) ? DM_BG : DM_BG2;
                         return CDRF_NEWFONT;
                     }

@@ -61,9 +61,7 @@ static HWND Ts_CreateListView(HWND hParent, int id, HINSTANCE hInst) {
         WS_CHILD | WS_BORDER | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER,
         0, 0, 10, 10, hParent, (HMENU)(intptr_t)id, hInst, NULL);
 
-    DWORD exStyle = LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER;
-    if (Settings_DarkMode()) exStyle |= LVS_EX_GRIDLINES;
-    ListView_SetExtendedListViewStyle(hList, exStyle);
+    ListView_SetExtendedListViewStyle(hList, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
 
     LVCOLUMNA lvc = {};
     lvc.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT;

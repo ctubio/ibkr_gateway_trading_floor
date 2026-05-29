@@ -372,9 +372,7 @@ LRESULT CALLBACK WndProcNews(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
         SendMessageA(hNewsProviderCombo, CB_ADDSTRING, 0, (LPARAM)"All");
         SendMessage(hNewsProviderCombo, CB_SETCURSEL, 0, 0);
 
-        DWORD exStyle = LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER;
-        if (Settings_DarkMode()) exStyle |= LVS_EX_GRIDLINES;
-        ListView_SetExtendedListViewStyle(hNewsResults, exStyle);
+        ListView_SetExtendedListViewStyle(hNewsResults, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
 
         // Add columns for each NewsTickEntry property
         LVCOLUMNA lvc = {};

@@ -315,11 +315,7 @@ LRESULT CALLBACK WndProcOrders(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
             ApplyListViewFont(hList, OrdersZoomData.hFont, OrdersZoomData.fontSize);
             SetWindowSubclass(hList, ListViewZoomProc, 0, (DWORD_PTR)&OrdersZoomData);
 
-            // Full-row selection + double-buffer to reduce flicker
-            DWORD exStyle = LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER;
-            if (Settings_DarkMode())
-                exStyle |= LVS_EX_GRIDLINES; // grid lines are more readable in dark mode
-            ListView_SetExtendedListViewStyle(hList, exStyle);
+            ListView_SetExtendedListViewStyle(hList, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
 
             LVCOLUMNA lvc = {};
             lvc.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT;

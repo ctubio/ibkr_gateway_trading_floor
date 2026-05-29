@@ -28,7 +28,7 @@ This application is a modern desktop trading companion built on the Interactive 
 
 ## Core Modules
 
-### 🖥️ Dashboard
+### 💼 Dashboard
 The central command hub of the application:
 - **Connection Status**: Real-time monitoring of Market Data and Trading sessions.
 - **Quick Launch**: One-click buttons to open any module in the suite.
@@ -42,13 +42,6 @@ High-level financial health monitoring:
 - **Margin Tracking**: Real-time Initial and Maintenance Margin requirements.
 - **P&L Suite**: Daily, Unrealized, and Realized P&L with green/red color-coding.
 
-### 💎 Diamonds (Portfolio)
-Deep-dive position analysis:
-- **Live Pricing**: Current bid/ask/last prices for all held instruments.
-- **Performance**: Daily P&L, change %, and unrealized P&L.
-- **Dividends**: Dividend yield, next dividend date, and annual dividend amounts.
-- **Market Context**: 52-week range percentage and market value relative to Net Liquidation.
-
 ### 📝 Orders
 Precision order tracking and management:
 - **Visual Status**: Color-coded rows for instant recognition:
@@ -56,13 +49,28 @@ Precision order tracking and management:
 - **Interactive Management**: In-place modification of order price and quantity.
 - **Audit Trail**: Sorted by status and timestamp to prioritize the most recent updates.
 
-### 📈 Watchlist
+### 💎 Diamonds (Portfolio)
+Deep-dive position analysis:
+- **Live Pricing**: Current bid/ask/last prices for all held instruments.
+- **Performance**: Daily P&L, change %, and unrealized P&L.
+- **Dividends**: Dividend yield, next dividend date, and annual dividend amounts.
+- **Market Context**: 52-week range percentage and market value relative to Net Liquidation.
+
+### 👀 Watchlist
 Real-time quote monitoring with saved watchlists and fast table navigation:
 - **Comprehensive Data**: Last price, bid/ask sizes, change %, dividend yield, dividend date, and annual dividend.
 - **Extended Metrics**: Fundamental tick updates, 52-week ranges, and market-cap style insights.
 - **Saved Watchlists**: Select named symbol sets from the Book and reuse them instantly.
 - **Live Placeholder Rows**: Symbols appear immediately while market data subscriptions are still initializing.
 - **Zoomable Tables**: Use `Ctrl + Mouse Wheel` on list views to resize text for readability.
+
+### 🏦 Market
+High-frequency trade monitoring with split-panel filtering and symbol search:
+- **Tick-by-Tick Feed**: Live trade price, size, time, and exchange for the active symbol.
+- **Filtered Views**: Toggle between full trades, top 100, and top 1000 size filters.
+- **Split Panel Layout**: Supports multiple synchronized panes for detailed trade inspection.
+- **Multi-Window Support**: Open many Time & Sales sessions at once for different instruments.
+- **Symbol Search Popup**: Rapidly look up symbols and open a new Time & Sales window from the search dialog.
 
 ### 📖 Book (Symbol Manager)
 The database for your reusable trading symbols:
@@ -79,14 +87,6 @@ Contextual market intelligence with provider filtering and article preview:
 - **Persistent State**: Restores the last selected news list, last selected symbol, and provider filter across sessions.
 - **Rich Article Preview**: Downloads news bodies and converts basic HTML into RTF for clean RichEdit display.
 - **Binary/PDF Handling**: Detects unsupported article formats and notifies the user when inline preview is unavailable.
-
-### ⏱️ Time & Sales
-High-frequency trade monitoring with split-panel filtering and symbol search:
-- **Tick-by-Tick Feed**: Live trade price, size, time, and exchange for the active symbol.
-- **Filtered Views**: Toggle between full trades, top 100, and top 1000 size filters.
-- **Split Panel Layout**: Supports multiple synchronized panes for detailed trade inspection.
-- **Multi-Window Support**: Open many Time & Sales sessions at once for different instruments.
-- **Symbol Search Popup**: Rapidly look up symbols and open a new Time & Sales window from the search dialog.
 
 ### ⚙️ Settings
 Personalized application configuration with immediate feedback:
