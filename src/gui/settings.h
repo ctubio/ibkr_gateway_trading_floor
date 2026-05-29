@@ -142,7 +142,6 @@ LRESULT CALLBACK WndProcSettings(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
                 HWND hChk = GetDlgItem(hWnd, ID_SETTINGS_DARK_MODE);
                 DWORD checked = (SendMessage(hChk, BM_GETCHECK, 0, 0) == BST_CHECKED) ? 1 : 0;
                 Settings_Save("DarkMode", checked);
-                InitDarkBrushes();
                 ApplyDarkModeToAllWindows();
                 // Force full repaint of this window and all children
                 InvalidateRect(hWnd, NULL, TRUE);
