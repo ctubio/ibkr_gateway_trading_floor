@@ -381,6 +381,9 @@ LRESULT CALLBACK WatchlistEditSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, L
         if (wParam == VK_RETURN) {
             if (acVis) {
                 int sel = (int)SendMessage(hAC, LB_GETCURSEL, 0, 0);
+                if (sel == LB_ERR && SendMessage(hAC, LB_GETCOUNT, 0, 0) > 0) {
+                    sel = 0;
+                }
                 if (sel != LB_ERR && sel < (int)wl_currentResults.size()) {
                     wl_pendingFullEntry = wl_currentResults[sel];
                     wl_suppressSearch = true;

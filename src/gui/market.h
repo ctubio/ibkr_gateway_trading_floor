@@ -137,6 +137,9 @@ LRESULT CALLBACK TsSearchEditSubclass(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
         }
         if (wParam == VK_RETURN && vis) {
             int sel = SendMessage(hTsSearchList, LB_GETCURSEL, 0, 0);
+            if (sel == LB_ERR && SendMessage(hTsSearchList, LB_GETCOUNT, 0, 0) > 0) {
+                sel = 0;
+            }
             if (sel != LB_ERR && sel < (int)tsSearchResults.size()) {
                 std::string r = tsSearchResults[sel];
                 auto dot = r.find('.');
