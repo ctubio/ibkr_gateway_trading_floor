@@ -1,29 +1,27 @@
 #pragma once
 
-void StartDashboard(HINSTANCE hInst) { StartGenericWindow(DASHBOARD_CLASS_NAME, "IBKR Gateway: Offline", L"IBKRGatewayClient.Dashboard", 293, 70, hInst); }
+void StartDashboard(HINSTANCE hInst) { StartGenericWindow(DASHBOARD_CLASS_NAME, "IBKR Gateway: Offline", L"IBKRGatewayClient.Dashboard", 260, 70, hInst); }
 
 #define WM_TRAYICON (WM_APP + 100)
 
 #define TIMER_WATCHDOG 1
 
-#define ID_MB_SYMBOLS    1001
+#define ID_M_DASHBOARD   1001
 #define ID_MB_COINS      1002
 #define ID_MB_DIAMONDS   1003
 #define ID_MB_SETTINGS   1004
 #define ID_MB_NEWS       1005
-#define ID_MB_WATCHLIST     1006
-#define ID_MB_MARKET  1007
+#define ID_MB_WATCHLIST  1006
+#define ID_MB_MARKET     1007
 #define ID_MB_ORDERS     1008
-#define ID_M_SYMBOLS     1009
+#define ID_M_ORDERS      1009
 #define ID_M_COINS       1010
 #define ID_M_DIAMONDS    1011
 #define ID_M_SETTINGS    1012
 #define ID_M_NEWS        1013
-#define ID_M_WATCHLIST      1014
-#define ID_M_MARKET   1015
-#define ID_M_ORDERS      1016
-#define ID_M_DASHBOARD   1017
-#define ID_M_DEBUGLOG    1018
+#define ID_M_WATCHLIST   1014
+#define ID_M_MARKET      1015
+#define ID_M_DEBUGLOG    1016
 
 #define ID_M_CONNECT    1100
 #define ID_M_DISCONNECT 1101
@@ -165,8 +163,7 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
             addButtons(hWnd, hInst, "Market",     6 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_MB_MARKET,    106);
             addButtons(hWnd, hInst, "News",       6 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_MB_NEWS,      107);
 
-            addButtons(hWnd, hInst, "Symbols",   12 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_MB_SYMBOLS,   108);
-            addButtons(hWnd, hInst, "Settings",  12 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_MB_SETTINGS,  109);
+            addButtons(hWnd, hInst, "Settings",  12 + (7 * steps++) + (26 * stepz++) + 1, 7, (HMENU)ID_MB_SETTINGS,  108);
 
             api.addApiUpdateWindow(hWnd);
             api.setApiErrorWindow(hWnd);
@@ -256,7 +253,6 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
                     }
                     
                     if (FindWindowA(NEWS_CLASS_NAME, NULL))      AppendMenuW(hMenu, MF_STRING, ID_M_NEWS,      IsWindowAlwaysOnTop(NEWS_CLASS_NAME)      ? L"[ ★ ] News"      : L"[  ] News");
-                    if (FindWindowA(BOOK_CLASS_NAME, NULL))      AppendMenuW(hMenu, MF_STRING, ID_M_SYMBOLS,   IsWindowAlwaysOnTop(BOOK_CLASS_NAME)      ? L"[ ★ ] Symbols"   : L"[  ] Symbols");
                     if (FindWindowA(SETTINGS_CLASS_NAME, NULL))  AppendMenuW(hMenu, MF_STRING, ID_M_SETTINGS,  IsWindowAlwaysOnTop(SETTINGS_CLASS_NAME)  ? L"[ ★ ] Settings"  : L"[  ] Settings");
                     if (FindWindowA(DEBUGLOG_CLASS_NAME, NULL))  AppendMenuW(hMenu, MF_STRING, ID_M_DEBUGLOG,  IsWindowAlwaysOnTop(DEBUGLOG_CLASS_NAME)  ? L"[ ★ ] Debug Log" : L"[  ] Debug Log");
 
@@ -282,7 +278,6 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
                         case ID_M_ORDERS:
                         case ID_M_WATCHLIST:
                         case ID_M_NEWS:
-                        case ID_M_SYMBOLS:
                         case ID_M_SETTINGS:
                         case ID_M_DEBUGLOG:
                             SendMessage(hWnd, WM_COMMAND, selectedCmd, 0);
@@ -337,9 +332,6 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
                     PostQuitMessage(0);
                     break;
                     
-                case ID_MB_SYMBOLS:
-                    StartBook();
-                    break;
                 case ID_MB_COINS:
                     StartCoins();
                     break;
@@ -363,9 +355,6 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
                     break;        
                 case ID_M_DASHBOARD:
                     ToggleWindowAlwaysOnTop(DASHBOARD_CLASS_NAME);
-                    break;
-                case ID_M_SYMBOLS:
-                    ToggleWindowAlwaysOnTop(BOOK_CLASS_NAME);
                     break;
                 case ID_M_COINS:
                     ToggleWindowAlwaysOnTop(COINS_CLASS_NAME);

@@ -2,12 +2,30 @@
 
 void StartWatchlist() { StartGenericWindow(WATCHLIST_CLASS_NAME, "Watchlist", L"IBKRGatewayClient.Watchlist", 1000, 400); }
 
-#define ID_WATCHLIST_LIST_COMBO  8001
-#define ID_WATCHLIST_LIST        8002
+
+#define ID_WATCHLIST_LIST_COMBO       8001
+#define ID_WATCHLIST_LIST             8002
+#define ID_WATCHLIST_EDIT             8003
+#define ID_WATCHLIST_NEW_SYMBOL_INPUT 8004
+
+#define TIMER_WL_DROPDOWN        98
+
+
+#define WM_WATCHLIST_NEW_LIST_START  (WM_APP + 200)
+#define WM_WATCHLIST_LIST_CHANGED    (WM_APP + 201)
+// Posted Watchlist when the set of lists changes (create/delete).
+// lParam = new std::string*(newListName, or "" if a list was deleted) — receiver must delete.
+#define WM_WATCHLIST_LISTS_CHANGED   (WM_APP + 203)
 
 static bool watchlistSelectorsVisible = false;
-static std::vector<std::string> watchlistCurrentEntries; // entries currently subscribed
-static std::string watchlistCurrentListName;             // name of the currently subscribed list
+static std::vector<std::string> watchlistCurrentEntries;
+static std::string watchlistCurrentListName;
+
+// Autocomplete state
+static bool          wl_suppressSearch = false;
+static bool          wl_showingOffline = false;
+static std::string   wl_pendingFullEntry;
+static std::vector<std::string> wl_currentResults;
 
 static const int WATCHLIST_COMBO_H    = 24;
 static const int WATCHLIST_SELECTOR_H = 8 + WATCHLIST_COMBO_H + 8;
@@ -51,14 +69,40 @@ static const char* WATCHLIST_NO_DATA = "--";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Notifies the Watchlist window (if open) that a watchlist list's contents changed.
+// The watchlist will re-subscribe if it is currently showing that list.
+void Watchlist_NotifyListChanged(const std::string& listName) {
+    HWND hWL = FindWindowA(WATCHLIST_CLASS_NAME, NULL);
+    if (hWL)
+        PostMessage(hWL, WM_WATCHLIST_LIST_CHANGED, 0, (LPARAM)new std::string(listName));
+}
+
+std::string Watchlist_DisplayLabel(const std::string& entry) {
+    // Format: conId.symbol.exchange — skip the conId part
+    auto first = entry.find('.');
+    if (first == std::string::npos) return entry;
+    return entry.substr(first + 1); // returns "symbol.exchange"
+}
+
+void Watchlist_LoadAllLists(HWND hCB) {
+    SendMessage(hCB, CB_RESETCONTENT, 0, 0);
+    for (const auto& name : Watchlist_LoadAllListNames())
+        SendMessageA(hCB, CB_ADDSTRING, 0, (LPARAM)name.c_str());
+    if (SendMessage(hCB, CB_GETCOUNT, 0, 0) > 0)
+        SendMessage(hCB, CB_SETCURSEL, 0, 0);
+}
+
+// Returns the real watchlist list name currently selected in the combo,
+// or "" if nothing / the sentinel ("── Create new Watchlist ──") is selected.
+// Index 0 is always the sentinel, indices 1..N are real lists.
 static std::string Watchlist_GetSelectedList(HWND hWnd) {
-    HWND hWatchlistListCombo = GetDlgItem(hWnd, ID_WATCHLIST_LIST_COMBO);
-    int sel = (int)SendMessage(hWatchlistListCombo, CB_GETCURSEL, 0, 0);
-    if (sel == CB_ERR) return "";
-    int len = (int)SendMessage(hWatchlistListCombo, CB_GETLBTEXTLEN, sel, 0);
+    HWND hCB = GetDlgItem(hWnd, ID_WATCHLIST_LIST_COMBO);
+    int sel = (int)SendMessage(hCB, CB_GETCURSEL, 0, 0);
+    if (sel <= 0) return "";   // CB_ERR or sentinel
+    int len = (int)SendMessage(hCB, CB_GETLBTEXTLEN, sel, 0);
     if (len <= 0) return "";
     std::string name(len + 1, '\0');
-    SendMessageA(hWatchlistListCombo, CB_GETLBTEXT, sel, (LPARAM)name.data());
+    SendMessageA(hCB, CB_GETLBTEXT, sel, (LPARAM)name.data());
     name.resize(len);
     return name;
 }
@@ -158,34 +202,6 @@ static void Watchlist_UpdateRow(HWND hWnd, int row, const TradingAPI::WatchlistI
     }
 }
 
-// ── Layout ────────────────────────────────────────────────────────────────────
-
-static void Watchlist_Layout(HWND hWnd) {
-    HWND hWatchlistList = GetDlgItem(hWnd, ID_WATCHLIST_LIST);
-    if (!hWatchlistList) return;
-    RECT rc; GetClientRect(hWnd, &rc);
-    const int m = 8;
-
-    int availH    = watchlistSelectorsVisible ? rc.bottom - WATCHLIST_SELECTOR_H : rc.bottom;
-    int selectorY = rc.bottom - WATCHLIST_SELECTOR_H;
-
-    MoveWindow(hWatchlistList, 0, 0, rc.right, availH, TRUE);
-
-    if (watchlistSelectorsVisible) {
-        int comboW = rc.right - m * 2;
-        int comboY = selectorY + (WATCHLIST_SELECTOR_H - WATCHLIST_COMBO_H) / 2;
-        SetWindowPos(GetDlgItem(hWnd, ID_WATCHLIST_LIST_COMBO), NULL, m, comboY, comboW, 200,
-                     SWP_NOZORDER | SWP_NOACTIVATE);
-    }
-}
-
-static void Watchlist_ShowSelectors(HWND hWnd, bool show) {
-    if (watchlistSelectorsVisible == show) return;
-    watchlistSelectorsVisible = show;
-    ShowWindow(GetDlgItem(hWnd, ID_WATCHLIST_LIST_COMBO), show ? SW_SHOW : SW_HIDE);
-    Watchlist_Layout(hWnd);
-}
-
 // ── Subscribe ─────────────────────────────────────────────────────────────────
 
 static void Watchlist_Subscribe(HWND hWnd, const std::string& listName) {
@@ -193,7 +209,7 @@ static void Watchlist_Subscribe(HWND hWnd, const std::string& listName) {
     Settings_SaveString("LastWatchlistList", listName);
     watchlistCurrentListName = listName;
 
-    auto entries = Book_ReadListEntries(listName.c_str());
+    auto entries = Watchlist_ReadListEntries(listName.c_str());
     watchlistCurrentEntries = entries;
 
     Watchlist_ClearList(hWnd);
@@ -213,7 +229,264 @@ static void Watchlist_Subscribe(HWND hWnd, const std::string& listName) {
     api.setWatchlistWindow(hWnd, entries);
 }
 
+// Reload the combo from the registry, keeping the sentinel at index 0.
+// Tries to restore whichever list was selected before.
+static void Watchlist_LoadListCombo(HWND hWnd) {
+    HWND hCB = GetDlgItem(hWnd, ID_WATCHLIST_LIST_COMBO);
+    std::string current = Watchlist_GetSelectedList(hWnd);  // save before reset
+    SendMessage(hCB, CB_RESETCONTENT, 0, 0);
+    SendMessageA(hCB, CB_ADDSTRING, 0, (LPARAM)"-- Create new Watchlist --");
+    for (const auto& name : Watchlist_LoadAllListNames())
+        SendMessageA(hCB, CB_ADDSTRING, 0, (LPARAM)name.c_str());
+    // Re-select the previous list if it still exists.
+    if (!current.empty()) {
+        int idx = (int)SendMessageA(hCB, CB_FINDSTRINGEXACT, -1, (LPARAM)current.c_str());
+        if (idx != CB_ERR) { SendMessage(hCB, CB_SETCURSEL, idx, 0); return; }
+    }
+    // Fall back to sentinel (no auto-subscribe).
+    
+    SendMessage(hCB, CB_SETCURSEL, 0, 0);
+}
+
+// ── Layout ────────────────────────────────────────────────────────────────────
+
+static void Watchlist_Layout(HWND hWnd) {
+    HWND hList = GetDlgItem(hWnd, ID_WATCHLIST_LIST);
+    if (!hList) return;
+    RECT rc; GetClientRect(hWnd, &rc);
+    const int m = 8, gap = 4;
+    const int editW = 200;
+
+    int availH    = watchlistSelectorsVisible ? rc.bottom - WATCHLIST_SELECTOR_H : rc.bottom;
+    int selectorY = rc.bottom - WATCHLIST_SELECTOR_H;
+    int comboY    = selectorY + (WATCHLIST_SELECTOR_H - WATCHLIST_COMBO_H) / 2;
+
+    MoveWindow(hList, 0, 0, rc.right, availH, TRUE);
+
+    if (watchlistSelectorsVisible) {
+        int totalW = rc.right - m * 2;
+        int comboW = totalW - editW - gap;
+
+        // Search edit on the right
+        SetWindowPos(GetDlgItem(hWnd, ID_WATCHLIST_EDIT), NULL,
+                     m + comboW + gap, comboY, editW, WATCHLIST_COMBO_H,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+        // List selector combo on the left
+        SetWindowPos(GetDlgItem(hWnd, ID_WATCHLIST_LIST_COMBO), NULL,
+                     m, comboY, comboW, 200,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+}
+
+static void Watchlist_ShowSelectors(HWND hWnd, bool show) {
+    if (watchlistSelectorsVisible == show) return;
+    watchlistSelectorsVisible = show;
+    int sw = show ? SW_SHOW : SW_HIDE;
+    ShowWindow(GetDlgItem(hWnd, ID_WATCHLIST_LIST_COMBO), sw);
+    ShowWindow(GetDlgItem(hWnd, ID_WATCHLIST_EDIT), sw);
+    if (!show) {
+        // Hide autocomplete too when window loses focus.
+        HWND hAC = (HWND)GetPropA(hWnd, "hWLAutoComplete");
+        if (hAC) ShowWindow(hAC, SW_HIDE);
+    }
+    Watchlist_Layout(hWnd);
+    if (show) SetFocus(GetDlgItem(hWnd, ID_WATCHLIST_EDIT));
+}
+
+// ── Autocomplete helpers ──────────────────────────────────────────────────────
+
+static void Watchlist_UpdateAutoComplete(HWND hWnd, const std::vector<std::string>& results) {
+    HWND hEdit = GetDlgItem(hWnd, ID_WATCHLIST_EDIT);
+    HWND hAC   = (HWND)GetPropA(hWnd, "hWLAutoComplete");
+    if (!hAC) return;
+
+    EnableWindow(hAC, TRUE);
+    wl_currentResults = results;
+
+    if (results.empty()) { ShowWindow(hAC, SW_HIDE); return; }
+
+    SendMessage(hAC, LB_RESETCONTENT, 0, 0);
+    for (const auto& s : results)
+        SendMessageA(hAC, LB_ADDSTRING, 0, (LPARAM)Watchlist_DisplayLabel(s).c_str());
+
+    RECT r;
+    GetWindowRect(hEdit, &r);
+    int itemH    = (int)SendMessage(hAC, LB_GETITEMHEIGHT, 0, 0);
+    int visItems = std::min((int)results.size(), 6);
+    SetWindowPos(hAC, HWND_TOPMOST, r.left, r.bottom, r.right - r.left, itemH * visItems + 4,
+                 SWP_SHOWWINDOW | SWP_NOACTIVATE);
+}
+
+// Adds fullEntry ("conId.symbol.exchange") to the currently selected list.
+// Re-subscribes watchlist.
+static void Watchlist_AddItem(HWND hWnd, const std::string& fullEntry) {
+    std::string listName = Watchlist_GetSelectedList(hWnd);
+    if (listName.empty()) return;
+    auto entries = Watchlist_ReadListEntries(listName.c_str());
+    for (const auto& e : entries) if (e == fullEntry) return;   // duplicate
+    entries.push_back(fullEntry);
+    Watchlist_SaveFullList(listName.c_str(), entries);
+    Watchlist_Subscribe(hWnd, listName);  // refresh this window immediately
+}
+
+// ── Subclass procs ────────────────────────────────────────────────────────────
+
+// Combo subclass: DEL key deletes the selected list.
+LRESULT CALLBACK WatchlistComboSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam,
+                                             UINT_PTR uIdSubclass, DWORD_PTR /*dwRefData*/) {
+    if (msg == WM_KEYDOWN && wParam == VK_DELETE) {
+        HWND hWL   = GetParent(hWnd);
+        std::string name = Watchlist_GetSelectedList(hWL);
+        if (!name.empty()) {
+            std::string prompt = "Delete watchlist \"" + name + "\"?";
+            if (MessageBoxA(hWL, prompt.c_str(), "Confirm", MB_YESNO | MB_ICONQUESTION) == IDYES) {
+                Watchlist_DeleteList(name.c_str());
+                // If we were showing this list, clear it.
+                if (watchlistCurrentListName == name) {
+                    watchlistCurrentListName.clear();
+                    Watchlist_ClearList(hWL);
+                    watchlistCurrentEntries.clear();
+                    SetWindowTextA(hWL, "Watchlist");
+                }
+                Watchlist_LoadListCombo(hWL);
+                PostMessage(hWL, WM_WATCHLIST_LISTS_CHANGED, 0, (LPARAM)new std::string(""));
+            }
+        }
+        return 0;
+    }
+    if (msg == WM_NCDESTROY) RemoveWindowSubclass(hWnd, WatchlistComboSubclassProc, uIdSubclass);
+    return DefSubclassProc(hWnd, msg, wParam, lParam);
+}
+
+// Edit subclass: arrow keys / Enter / Escape navigate the autocomplete.
+LRESULT CALLBACK WatchlistEditSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam,
+                                            UINT_PTR uIdSubclass, DWORD_PTR /*dwRefData*/) {
+    if (msg == WM_KEYDOWN) {
+        HWND hWL = GetParent(hWnd);
+        HWND hAC = (HWND)GetPropA(hWL, "hWLAutoComplete");
+        bool acVis = hAC && IsWindowVisible(hAC);
+
+        if (wParam == VK_DOWN && acVis) {
+            int cnt = (int)SendMessage(hAC, LB_GETCOUNT, 0, 0);
+            int sel = (int)SendMessage(hAC, LB_GETCURSEL, 0, 0);
+            if (sel == LB_ERR) sel = -1;
+            if (sel + 1 < cnt) SendMessage(hAC, LB_SETCURSEL, sel + 1, 0);
+            return 0;
+        }
+        if (wParam == VK_UP && acVis) {
+            int sel = (int)SendMessage(hAC, LB_GETCURSEL, 0, 0);
+            if (sel > 0) SendMessage(hAC, LB_SETCURSEL, sel - 1, 0);
+            return 0;
+        }
+        if (wParam == VK_RETURN) {
+            if (acVis) {
+                int sel = (int)SendMessage(hAC, LB_GETCURSEL, 0, 0);
+                if (sel != LB_ERR && sel < (int)wl_currentResults.size()) {
+                    wl_pendingFullEntry = wl_currentResults[sel];
+                    wl_suppressSearch = true;
+                    SetWindowTextA(hWnd, Watchlist_DisplayLabel(wl_pendingFullEntry).c_str());
+                    wl_suppressSearch = false;
+                    ShowWindow(hAC, SW_HIDE);
+                    Watchlist_AddItem(hWL, wl_pendingFullEntry);
+                    SetWindowTextA(hWnd, "");
+                    wl_pendingFullEntry.clear();
+                }
+            }
+            return 0;
+        }
+        if (wParam == VK_ESCAPE && acVis) {
+            ShowWindow(hAC, SW_HIDE);
+            return 0;
+        }
+    }
+    if (msg == WM_NCDESTROY) RemoveWindowSubclass(hWnd, WatchlistEditSubclassProc, uIdSubclass);
+    return DefSubclassProc(hWnd, msg, wParam, lParam);
+}
+
+// Autocomplete listbox subclass: mouse click selects and adds the item.
+LRESULT CALLBACK WatchlistAutoCompleteSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam,
+                                                    UINT_PTR uIdSubclass, DWORD_PTR /*dwRefData*/) {
+    if (msg == WM_LBUTTONUP) {
+        int sel = (int)SendMessage(hWnd, LB_GETCURSEL, 0, 0);
+        if (sel != LB_ERR && sel < (int)wl_currentResults.size()) {
+            HWND hWL   = (HWND)GetPropA(hWnd, "hWLParent");
+            HWND hEdit = GetDlgItem(hWL, ID_WATCHLIST_EDIT);
+            wl_pendingFullEntry = wl_currentResults[sel];
+            KillTimer(hWL, TIMER_WL_DROPDOWN);
+            ShowWindow(hWnd, SW_HIDE);
+            SetFocus(hEdit);
+            Watchlist_AddItem(hWL, wl_pendingFullEntry);
+            SetWindowTextA(hEdit, "");
+            wl_pendingFullEntry.clear();
+        }
+    }
+    if (msg == WM_NCDESTROY) RemoveWindowSubclass(hWnd, WatchlistAutoCompleteSubclassProc, uIdSubclass);
+    return DefSubclassProc(hWnd, msg, wParam, lParam);
+}
+
 // ── Window procedure ──────────────────────────────────────────────────────────
+
+LRESULT CALLBACK WndProcNewList(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    switch (message) {
+        case WM_CREATE: {
+            // Create the edit control and return immediately so WM_CREATE finishes.
+            // The window will fully paint its NC area (title bar, border, icons)
+            // before WM_WATCHLIST_NEW_LIST_START arrives, fixing the blank-title glitch.
+            CreateWindowA("EDIT", "",
+                WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+                10, 10, 260 - 28, 24,
+                hWnd, (HMENU)ID_WATCHLIST_NEW_SYMBOL_INPUT, GetModuleHandle(NULL), NULL);
+
+            PostMessage(hWnd, WM_WATCHLIST_NEW_LIST_START, 0, 0);
+            break;
+        }
+
+        case WM_WATCHLIST_NEW_LIST_START: {
+            // Window is fully created and painted by now — safe to run the modal loop.
+            SetFocus(GetDlgItem(hWnd, ID_WATCHLIST_NEW_SYMBOL_INPUT));
+
+            MSG dlgMsg;
+            char newName[128] = {};
+            bool dlgDone = false;
+
+            while (!dlgDone && GetMessage(&dlgMsg, NULL, 0, 0)) {
+                if (dlgMsg.hwnd == GetDlgItem(hWnd, ID_WATCHLIST_NEW_SYMBOL_INPUT)
+                    && dlgMsg.message == WM_KEYDOWN
+                    && dlgMsg.wParam == VK_RETURN)
+                {
+                    GetWindowTextA(GetDlgItem(hWnd, ID_WATCHLIST_NEW_SYMBOL_INPUT), newName, sizeof(newName));
+                    dlgDone = true;
+                } else if (dlgMsg.message == WM_KEYDOWN && dlgMsg.wParam == VK_ESCAPE) {
+                    dlgDone = true;
+                } else {
+                    TranslateMessage(&dlgMsg);
+                    DispatchMessage(&dlgMsg);
+                }
+                if (!IsWindow(hWnd)) dlgDone = true;
+            }
+
+            DestroyWindow(hWnd);
+
+            if (strlen(newName) > 0) {
+                HKEY hKey;
+                char fullPath[256];
+                wsprintf(fullPath, "%s\\Watchlist", APP_REG_ROOT);
+                if (RegCreateKeyExA(HKEY_CURRENT_USER, fullPath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+                    const char empty[2] = { '\0', '\0' };
+                    RegSetValueExA(hKey, newName, 0, REG_MULTI_SZ, (const BYTE*)empty, 2);
+                    RegCloseKey(hKey);
+                }
+
+                // Notify Watchlist to reload their combos.
+                HWND hWL = FindWindowA(WATCHLIST_CLASS_NAME, NULL);
+                PostMessage(hWL, WM_WATCHLIST_LISTS_CHANGED, 0, (LPARAM)new std::string(newName));
+            }
+            break;
+        }
+    }
+
+    return HandleCommonMessages(hWnd, message, wParam, lParam);
+}
 
 LRESULT CALLBACK WndProcWatchlist(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
@@ -222,7 +495,7 @@ LRESULT CALLBACK WndProcWatchlist(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
         const int m = 8;
 
-        // List first — lower Z-order, behind the combo.
+        // List first — lower Z-order, behind the selector row.
         HWND hWatchlistList = CreateWindowExA(
             WS_EX_CLIENTEDGE, "SysListView32", "",
             WS_CHILD | WS_VISIBLE | WS_BORDER |
@@ -245,20 +518,42 @@ LRESULT CALLBACK WndProcWatchlist(HWND hWnd, UINT message, WPARAM wParam, LPARAM
             ListView_InsertColumn(hWatchlistList, i, &lvc);
         }
 
-        // Combo on top (higher Z-order), hidden until focused.
-        HWND hWatchlistListCombo = CreateWindowA("COMBOBOX", NULL,
+        // Search edit (right side of selector row), hidden until focused.
+        HWND hEdit = CreateWindowA("EDIT", NULL,
+            WS_CHILD | WS_BORDER | ES_AUTOHSCROLL | ES_UPPERCASE,
+            m, m, 200, WATCHLIST_COMBO_H,
+            hWnd, (HMENU)ID_WATCHLIST_EDIT, hInst, NULL);
+        SetWindowSubclass(hEdit, WatchlistEditSubclassProc, 1, 0);
+
+        // List selector combo (right side of selector row), hidden until focused.
+        HWND hCB = CreateWindowA("COMBOBOX", NULL,
             WS_CHILD | WS_VSCROLL | CBS_DROPDOWNLIST,
             m, m, 200, 200,
             hWnd, (HMENU)ID_WATCHLIST_LIST_COMBO, hInst, NULL);
+        SetWindowSubclass(hCB, WatchlistComboSubclassProc, 2, 0);
 
-        Book_LoadAllLists(hWatchlistListCombo);
+        // Autocomplete popup — top-level, topmost, hidden by default.
+        HWND hAC = CreateWindowExA(
+            WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+            "LISTBOX", NULL,
+            WS_POPUP | WS_BORDER | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT,
+            0, 0, 200, 100,
+            NULL, NULL, hInst, NULL);
+        SetWindowSubclass(hAC, WatchlistAutoCompleteSubclassProc, 3, 0);
+        // Store the watchlist HWND on the autocomplete so its subclass can reach it.
+        SetPropA(hAC, "hWLParent", (HANDLE)hWnd);
+        SetPropA(hWnd, "hWLAutoComplete", (HANDLE)hAC);
+        ApplyListViewFont(hAC, WatchlistZoomData.hFont, WatchlistZoomData.fontSize);
+
+        // Populate combo (sentinel + all lists).
+        Watchlist_LoadListCombo(hWnd);
 
         // Restore last session.
         std::string lastList = Settings_LoadString("LastWatchlistList");
         if (!lastList.empty()) {
-            int idx = (int)SendMessageA(hWatchlistListCombo, CB_FINDSTRINGEXACT, -1, (LPARAM)lastList.c_str());
+            int idx = (int)SendMessageA(hCB, CB_FINDSTRINGEXACT, -1, (LPARAM)lastList.c_str());
             if (idx != CB_ERR) {
-                SendMessage(hWatchlistListCombo, CB_SETCURSEL, idx, 0);
+                SendMessage(hCB, CB_SETCURSEL, idx, 0);
                 Watchlist_Subscribe(hWnd, lastList);
             }
         }
@@ -276,9 +571,87 @@ LRESULT CALLBACK WndProcWatchlist(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         return 0;
 
     case WM_COMMAND:
-        if (LOWORD(wParam) == ID_WATCHLIST_LIST_COMBO && HIWORD(wParam) == CBN_SELCHANGE)
-            Watchlist_Subscribe(hWnd, Watchlist_GetSelectedList(hWnd));
+        if (LOWORD(wParam) == ID_WATCHLIST_LIST_COMBO && HIWORD(wParam) == CBN_SELCHANGE) {
+            HWND hCB = GetDlgItem(hWnd, ID_WATCHLIST_LIST_COMBO);
+            int sel = (int)SendMessage(hCB, CB_GETCURSEL, 0, 0);
+            if (sel == 0) {
+                // Sentinel selected — open "New Watchlist" dialog, then re-select previous.
+                std::string prev = watchlistCurrentListName;
+                StartGenericWindow(WATCHLIST_NEW_LIST_CLASS_NAME, "New Watchlist Name", L"IBKRGatewayClient.WatchlistNewList", 260, 75);
+                // Restore selection (new list will arrive via WM_WATCHLIST_LISTS_CHANGED).
+                if (!prev.empty()) {
+                    int idx = (int)SendMessageA(hCB, CB_FINDSTRINGEXACT, -1, (LPARAM)prev.c_str());
+                    if (idx != CB_ERR) SendMessage(hCB, CB_SETCURSEL, idx, 0);
+                    else               SendMessage(hCB, CB_SETCURSEL, 0, 0);
+                }
+            } else {
+                std::string name = Watchlist_GetSelectedList(hWnd);
+                if (!name.empty()) Watchlist_Subscribe(hWnd, name);
+            }
+        }
+        if (LOWORD(wParam) == ID_WATCHLIST_EDIT && HIWORD(wParam) == EN_CHANGE) {
+            if (wl_suppressSearch) break;
+            wl_pendingFullEntry.clear();
+            char text[256] = {};
+            GetWindowTextA(GetDlgItem(hWnd, ID_WATCHLIST_EDIT), text, sizeof(text));
+            std::string query = text;
+            auto dot = query.find('.');
+            if (dot != std::string::npos) query = query.substr(0, dot);
+            HWND hAC = (HWND)GetPropA(hWnd, "hWLAutoComplete");
+            if (query.size() >= 1) {
+                if (!api.isConnected()) {
+                    wl_showingOffline = true;
+                    SendMessage(hAC, LB_RESETCONTENT, 0, 0);
+                    SendMessageA(hAC, LB_ADDSTRING, 0, (LPARAM)"Gateway is disconnected!");
+                    RECT r; GetWindowRect(GetDlgItem(hWnd, ID_WATCHLIST_EDIT), &r);
+                    int ih = (int)SendMessage(hAC, LB_GETITEMHEIGHT, 0, 0);
+                    SetWindowPos(hAC, HWND_TOPMOST, r.left, r.bottom, r.right - r.left, ih + 4,
+                                 SWP_SHOWWINDOW | SWP_NOACTIVATE);
+                    EnableWindow(hAC, FALSE);
+                } else {
+                    wl_showingOffline = false;
+                    api.setSymbolSearchWindow(hWnd);
+                    api.searchSymbols(query);
+                }
+            } else {
+                ShowWindow(hAC, SW_HIDE);
+            }
+        }
+        if (LOWORD(wParam) == ID_WATCHLIST_EDIT && HIWORD(wParam) == EN_KILLFOCUS) {
+            SetTimer(hWnd, TIMER_WL_DROPDOWN, 150, NULL);
+        }
         break;
+
+    case WM_TIMER:
+        if (wParam == TIMER_WL_DROPDOWN) {
+            KillTimer(hWnd, TIMER_WL_DROPDOWN);
+            HWND hAC = (HWND)GetPropA(hWnd, "hWLAutoComplete");
+            if (hAC) ShowWindow(hAC, SW_HIDE);
+        }
+        break;
+
+    case WM_SYMBOL_RESULTS: {
+        if (wl_showingOffline) break;
+        char text[256] = {};
+        GetWindowTextA(GetDlgItem(hWnd, ID_WATCHLIST_EDIT), text, sizeof(text));
+        std::string query = text;
+        auto results = api.getSymbolResults();
+        if (query.find('.') != std::string::npos) {
+            std::string upper = query;
+            for (auto& c : upper) c = (char)toupper((unsigned char)c);
+            std::vector<std::string> filtered;
+            for (const auto& r : results) {
+                std::string label = Watchlist_DisplayLabel(r);
+                std::string lu = label;
+                for (auto& c : lu) c = (char)toupper((unsigned char)c);
+                if (lu.find(upper) == 0) filtered.push_back(r);
+            }
+            Watchlist_UpdateAutoComplete(hWnd, filtered);
+        } else {
+            Watchlist_UpdateAutoComplete(hWnd, results);
+        }
+        break;
+    }
 
     // ── Live or historical market data update for one symbol ──────────────────
     // lParam = new std::string("conId.symbol") — we own it and must delete.
@@ -300,10 +673,10 @@ LRESULT CALLBACK WndProcWatchlist(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         break;
     }
 
-    // ── Book list changed notification ────────────────────────────────────────
-    // Sent by Book_NotifyListChanged whenever a list is mutated (add/delete/sort).
+    // ── Watchlist list changed notification ────────────────────────────────────────
+    // Sent by Watchlist_NotifyListChanged whenever a list is mutated (add/delete/sort).
     // lParam = new std::string*(listName) — we own and must delete.
-    case WM_BOOK_LIST_CHANGED: {
+    case WM_WATCHLIST_LIST_CHANGED: {
         auto* name = reinterpret_cast<std::string*>(lParam);
         if (name) {
             if (*name == watchlistCurrentListName)
@@ -327,9 +700,84 @@ LRESULT CALLBACK WndProcWatchlist(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         }
         break;
 
+    // ── Watchlist list-set changed (list created or deleted externally) ────────────
+    case WM_WATCHLIST_LISTS_CHANGED: {
+        auto* name = reinterpret_cast<std::string*>(lParam);
+        std::string newName = name ? *name : "";
+        delete name;
+        Watchlist_LoadListCombo(hWnd);
+        // If a new list was created, auto-select and subscribe to it.
+        if (newName.empty()) {
+            HWND hCB = GetDlgItem(hWnd, ID_WATCHLIST_LIST_COMBO);
+            int count = (int)SendMessage(hCB, CB_GETCOUNT, 0, 0);
+            if (count > 2) {
+                int targetIndex = 1;
+                SendMessage(hCB, CB_SETCURSEL, targetIndex, 0);
+                int textLen = (int)SendMessage(hCB, CB_GETLBTEXTLEN, targetIndex, 0);
+                if (textLen != CB_ERR) {
+                    std::string selectedName;
+                    selectedName.resize(textLen);
+                    SendMessageA(hCB, CB_GETLBTEXT, targetIndex, (LPARAM)selectedName.data());
+                    Watchlist_Subscribe(hWnd, selectedName);
+                }
+            }
+        } else {
+            HWND hCB = GetDlgItem(hWnd, ID_WATCHLIST_LIST_COMBO);
+            int idx = (int)SendMessageA(hCB, CB_FINDSTRINGEXACT, -1, (LPARAM)newName.c_str());
+            if (idx != CB_ERR) {
+                SendMessage(hCB, CB_SETCURSEL, idx, 0);
+                Watchlist_Subscribe(hWnd, newName);
+            }
+        }
+        return 0;
+    }
+
     case WM_NOTIFY: {
         NMHDR* hdr = (NMHDR*)lParam;
         if (hdr->idFrom != ID_WATCHLIST_LIST) break;
+
+        if (hdr->code == LVN_KEYDOWN) {
+            NMLVKEYDOWN* kd = (NMLVKEYDOWN*)lParam;
+            if (kd->wVKey == VK_DELETE) {
+                HWND hList = GetDlgItem(hWnd, ID_WATCHLIST_LIST);
+                int row = ListView_GetNextItem(hList, -1, LVNI_SELECTED);
+                if (row >= 0) {
+                    // Retrieve the stored entry string from watchlistCurrentEntries
+                    // by matching via the row's lParam (WatchlistRowData*).
+                    LVITEMA lvi = {};
+                    lvi.mask  = LVIF_PARAM;
+                    lvi.iItem = row;
+                    SendMessageA(hList, LVM_GETITEMA, 0, (LPARAM)&lvi);
+                    auto* rd = reinterpret_cast<WatchlistRowData*>(lvi.lParam);
+                    if (rd) {
+                        // Find and remove the matching entry from the registry list.
+                        std::string listName = watchlistCurrentListName;
+                        auto entries = Watchlist_ReadListEntries(listName.c_str());
+                        auto it = std::remove_if(entries.begin(), entries.end(),
+                            [&](const std::string& e) {
+                                auto d1 = e.find('.');
+                                if (d1 == std::string::npos) return false;
+                                int cid = std::stoi(e.substr(0, d1));
+                                auto d2 = e.find('.', d1 + 1);
+                                std::string sym = (d2 != std::string::npos)
+                                    ? e.substr(d1 + 1, d2 - d1 - 1)
+                                    : e.substr(d1 + 1);
+                                return cid == rd->conId && sym == rd->symbol;
+                            });
+                        if (it != entries.end()) {
+                            entries.erase(it, entries.end());
+                            Watchlist_SaveFullList(listName.c_str(), entries);
+                            // Refresh: delete row from view and update our entry cache.
+                            delete rd;
+                            ListView_DeleteItem(hList, row);
+                            watchlistCurrentEntries = entries;
+                            api.setWatchlistWindow(hWnd, watchlistCurrentEntries);
+                        }
+                    }
+                }
+            }
+            break;
+        }
         if (hdr->code == NM_DBLCLK) {
             LPNMITEMACTIVATE act = (LPNMITEMACTIVATE)lParam;
             int row = act->iItem;
@@ -388,11 +836,15 @@ LRESULT CALLBACK WndProcWatchlist(HWND hWnd, UINT message, WPARAM wParam, LPARAM
     case WM_DESTROY:
         api.unsetWatchlistWindow();
         api.removeApiUpdateWindow(hWnd);
-        Watchlist_ClearList(hWnd); // frees lParam WatchlistRowData structs
+        Watchlist_ClearList(hWnd);
         watchlistCurrentEntries.clear();
-            if (WatchlistZoomData.hFont) {
-                DeleteObject(WatchlistZoomData.hFont);
-            }
+        watchlistCurrentListName.clear();
+        {
+            HWND hAC = (HWND)GetPropA(hWnd, "hWLAutoComplete");
+            if (hAC) { RemovePropA(hAC, "hWLParent"); DestroyWindow(hAC); }
+            RemovePropA(hWnd, "hWLAutoComplete");
+        }
+        if (WatchlistZoomData.hFont) DeleteObject(WatchlistZoomData.hFont);
         break;
     }
 

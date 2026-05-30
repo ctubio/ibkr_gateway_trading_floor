@@ -75,10 +75,10 @@ HWND StartGenericWindow(const char* className, const char* title, const wchar_t*
             dwExStyle = WS_EX_TOPMOST;
             dwStyle   = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
         }
-        if (strcmp(className, BOOK_NEW_LIST_CLASS_NAME) == 0) {
+        if (strcmp(className, WATCHLIST_NEW_LIST_CLASS_NAME) == 0) {
             dwExStyle = WS_EX_DLGMODALFRAME | WS_EX_TOPMOST;
             dwStyle   = WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE;
-            hWndParent = FindWindowA(BOOK_CLASS_NAME, NULL);
+            hWndParent = FindWindowA(WATCHLIST_CLASS_NAME, NULL);
         }
         if (strcmp(className, NEWS_ARTICLE_CLASS_NAME) == 0) {
             dwExStyle = WS_EX_DLGMODALFRAME;
@@ -88,7 +88,7 @@ HWND StartGenericWindow(const char* className, const char* title, const wchar_t*
         hWnd = CreateWindowExA(dwExStyle, className, title, dwStyle, x, y, w, h, hWndParent, NULL, GetModuleHandle(NULL), lpParam);
     }
 
-    if (strcmp(className, BOOK_NEW_LIST_CLASS_NAME) != 0)
+    if (strcmp(className, WATCHLIST_NEW_LIST_CLASS_NAME) != 0)
         SetWindowTaskbarId(hWnd, taskbarId);
 
     return hWnd;
@@ -212,7 +212,7 @@ void RegisterWindowClass(HINSTANCE hInst, WNDPROC WndProc, const char* className
     wc.lpszClassName = className;
     wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
-    if (strcmp(className, DEBUGLOG_CLASS_NAME) == 0 || strcmp(className, BOOK_NEW_LIST_CLASS_NAME) == 0) {
+    if (strcmp(className, DEBUGLOG_CLASS_NAME) == 0 || strcmp(className, WATCHLIST_NEW_LIST_CLASS_NAME) == 0) {
         wc.hInstance = GetModuleHandle(NULL);
     } else {
         wc.hInstance = hInst;

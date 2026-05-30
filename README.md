@@ -9,20 +9,20 @@ A lightweight Windows tray application that connects to Interactive Brokers Gate
 This application is a modern desktop trading companion built on the Interactive Brokers C++ API. It is designed to work with **IBKR Gateway** (not Trader Workstation) and provides a modular, multi-window environment for professional traders.
 
 ### Core Capabilities:
-- **Real-time Market Data**: Live quotes, tick-by-tick Time & Sales, and symbol watchlists.
+- **Real-time Market Data**: Live quotes, tick-by-tick Market, and symbol watchlists.
 - **Account Intelligence**: Live margin metrics, Net Liquidation Value with optional Text-to-Speech (TTS) alerts, and detailed P&L analytics.
 - **Portfolio Management**: Comprehensive position tracking with dividend data and 52-week range analysis.
 - **Order Execution Tracking**: Real-time order status monitoring with intuitive color-coding and in-place modifications.
-- **Information Hub**: Symbol-specific news headlines with provider filtering, HTML-to-RTF article preview, and a centralized watchlist manager (Book).
-- **User-Friendly UI**: Font zoom support for ListViews, split-panel Time & Sales, and auto-complete symbol entry in Book.
+- **Information Hub**: Symbol-specific news headlines with provider filtering, HTML-to-RTF article preview, and a centralized watchlist manager.
+- **User-Friendly UI**: Font zoom support for ListViews, split-panel Market, and auto-complete symbol entry in Watchlist.
 - **Robust Infrastructure**: Auto-reconnecting watchdog, persistent registry-based settings, and a system-tray-first design.
 
 ## Key Highlights
 
 - **Tray-Centric Design**: Runs primarily from the system tray with dynamic status icons (Connected/Disconnected) and a context menu for quick window management.
 - **Auto-Connect Watchdog**: A dedicated background timer monitors the connection to `127.0.0.1:4001` and automatically restores the session if the Gateway drops.
-- **Modular Window Architecture**: A "Trading Floor" layout where 10+ independent windows (Dashboard, Coins, Diamonds, Orders, Watchlist, News, Time & Sales, Book, Settings, Debug Log) can be arranged, persisted, and restored.
-- **Advanced Watchlists**: Create and manage named symbol lists in the **Book** module, which are then shared across the Watchlist, News, and Time & Sales windows.
+- **Modular Window Architecture**: A "Trading Floor" layout where 10+ independent windows (Dashboard, Coins, Diamonds, Orders, Watchlist, News, Market, Settings, Debug Log) can be arranged, persisted, and restored.
+- **Advanced Watchlists**: Create and manage named symbol lists directly in the Watchlist window, which are then shared across News and Market.
 - **Accessibility & Alerts**: Integrated Windows SAPI for NetLiq voice alerts and custom sound notifications for critical trading events.
 - **Visual Customization**: Full Dark Mode support, list view font zooming, and high-contrast color-coding for P&L and order statuses.
 
@@ -32,7 +32,7 @@ This application is a modern desktop trading companion built on the Interactive 
 The central command hub of the application:
 - **Connection Status**: Real-time monitoring of Market Data and Trading sessions.
 - **Quick Launch**: One-click buttons to open any module in the suite.
-- **Window Management**: Dynamic menu to toggle "Always On Top" for active Time & Sales windows.
+- **Window Management**: Dynamic menu to toggle "Always On Top" for active Market windows.
 - **Session Control**: Manual Connect/Disconnect overrides.
 
 ### 💰 Coins (Account Summary)
@@ -49,8 +49,8 @@ Precision order tracking and management:
 - **Interactive Management**: In-place modification of order price and quantity.
 - **Audit Trail**: Sorted by status and timestamp to prioritize the most recent updates.
 
-### 💎 Diamonds (Portfolio)
-Deep-dive position analysis:
+### 💎 Diamonds
+Deep-dive portfolio positions analysis:
 - **Live Pricing**: Current bid/ask/last prices for all held instruments.
 - **Performance**: Daily P&L, change %, and unrealized P&L.
 - **Dividends**: Dividend yield, next dividend date, and annual dividend amounts.
@@ -60,25 +60,19 @@ Deep-dive position analysis:
 Real-time quote monitoring with saved watchlists and fast table navigation:
 - **Comprehensive Data**: Last price, bid/ask sizes, change %, dividend yield, dividend date, and annual dividend.
 - **Extended Metrics**: Fundamental tick updates, 52-week ranges, and market-cap style insights.
-- **Saved Watchlists**: Select named symbol sets from the Book and reuse them instantly.
+- **Symbol Auto-Complete**: Add instruments quickly using the inline searchable symbol entry box.
+- **Registry Persistence**: All lists are stored under the Windows Registry and recovered across restarts.
 - **Live Placeholder Rows**: Symbols appear immediately while market data subscriptions are still initializing.
 - **Zoomable Tables**: Use `Ctrl + Mouse Wheel` on list views to resize text for readability.
+- **Keyboard-Friendly Editing**: Use Delete key to remove lists and list items.
 
 ### 🏦 Market
 High-frequency trade monitoring with split-panel filtering and symbol search:
 - **Tick-by-Tick Feed**: Live trade price, size, time, and exchange for the active symbol.
 - **Filtered Views**: Toggle between full trades, top 100, and top 1000 size filters.
 - **Split Panel Layout**: Supports multiple synchronized panes for detailed trade inspection.
-- **Multi-Window Support**: Open many Time & Sales sessions at once for different instruments.
-- **Symbol Search Popup**: Rapidly look up symbols and open a new Time & Sales window from the search dialog.
-
-### 📖 Book (Symbol Manager)
-The database for your reusable trading symbols:
-- **CRUD Operations**: Create, rename, and delete named watchlists.
-- **Symbol Auto-Complete**: Add instruments quickly using the inline searchable symbol entry box.
-- **Keyboard-Friendly Editing**: Use Delete to remove list items, and Up/Down buttons to reorder symbols.
-- **Registry Persistence**: All lists are stored under the Windows Registry and recovered across restarts.
-- **Shared Workflow**: Feeds the Watchlist, News, and Time & Sales windows with the same saved symbol lists.
+- **Multi-Window Support**: Open many Market sessions at once for different instruments.
+- **Symbol Search Popup**: Rapidly look up symbols and open a new Market window from the search dialog.
 
 ### 📰 News
 Contextual market intelligence with provider filtering and article preview:
@@ -195,8 +189,8 @@ src/api/sound.h      # audio notification queue
 ## Usage
 
 - Use the tray icon to show/hide the main dashboard.
-- Open windows for account, positions, orders, market quotes, news, and Time & Sales.
-- Manage watchlists from the Book window and reuse them in Watchlist/News.
+- Open windows for account, positions, orders, market quotes, news, and Market.
+- Manage watchlists directly in the Watchlist window and reuse them in News and Market.
 - Use the Settings window to tune app behavior.
 - Open Debug Log for live diagnostics.
 

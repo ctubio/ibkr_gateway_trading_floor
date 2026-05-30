@@ -557,20 +557,20 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
                 ListView_GetItem(hList, &item);
                 int conId = (int)item.lParam;
 
-                // Read book lists fresh every time (user may have edited them).
-                std::vector<std::string> bookLists = Book_LoadAllListNames();
+                // Read watchlist lists fresh every time (user may have edited them).
+                std::vector<std::string> watchlistLists = Watchlist_LoadAllListNames();
 
                 // Build context menu.
-                // IDs 1-3: tab assignments.  IDs 100+: "Add to Book: <name>".
+                // IDs 1-3: tab assignments.  IDs 100+: "Add to Watchlist: <name>".
                 HMENU hMenu = CreatePopupMenu();
                 AppendMenuA(hMenu, MF_STRING | (g_DiamondsActiveTab == DTAB_ALL   ? MF_GRAYED : 0), 1, "Move to Growth");
                 AppendMenuA(hMenu, MF_STRING | (g_DiamondsActiveTab == DTAB_WATCH ? MF_GRAYED : 0), 2, "Move to High-Yield Dividends");
                 AppendMenuA(hMenu, MF_STRING | (g_DiamondsActiveTab == DTAB_DIV   ? MF_GRAYED : 0), 3, "Move to Quarantine");
 
-                if (!bookLists.empty()) {
+                if (!watchlistLists.empty()) {
                     AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-                    for (int i = 0; i < (int)bookLists.size(); ++i) {
-                        std::string label = "Add to Book: " + bookLists[i];
+                    for (int i = 0; i < (int)watchlistLists.size(); ++i) {
+                        std::string label = "Add to Watchlist: " + watchlistLists[i];
                         AppendMenuA(hMenu, MF_STRING, 100 + i, label.c_str());
                     }
                 }
@@ -590,11 +590,10 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
                         g_DiamondsTabMap[conId] = targetTab;
                     Diamonds_SaveTabMap();
                     Diamonds_Repopulate(hWnd);
-                } else if (cmd >= 100 && cmd < 100 + (int)bookLists.size()) {
-                    // Add to book list.
-                    const std::string& listName = bookLists[cmd - 100];
-                    // Look up the full PositionInfo so we can include the exchange,
-                    // producing the same "conId.symbol.exchange" format that book.h uses.
+                } else if (cmd >= 100 && cmd < 100 + (int)watchlistLists.size()) {
+                    // Add to watchlist list.
+                    const std::string& listName = watchlistLists[cmd - 100];
+                    // Look up the full PositionInfo so we can include the exchange.
                     std::string exchange;
                     {
                         std::lock_guard<std::mutex> lock(api.getPortfolioMutex());
@@ -607,16 +606,15 @@ LRESULT CALLBACK WndProcDiamonds(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
                     if (!exchange.empty())
                         entry += "." + exchange;
 
-                    auto entries = Book_ReadListEntries(listName.c_str());
+                    auto entries = Watchlist_ReadListEntries(listName.c_str());
                     // Only add if not already present.
                     bool exists = false;
                     for (const auto& e : entries)
                         if (e == entry) { exists = true; break; }
                     if (!exists) {
                         entries.push_back(entry);
-                        Book_SaveFullList(listName.c_str(), entries);
-                        Book_NotifyListChanged(listName);
-                        Book_NotifyBookWindow(listName);
+                        Watchlist_SaveFullList(listName.c_str(), entries);
+                        Watchlist_NotifyListChanged(listName);
                     }
                 }
             }

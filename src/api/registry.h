@@ -7,19 +7,18 @@
 
 constexpr const char* APP_REG_ROOT = "Software\\ibkr-gateway-trading-floor";
 
-static const char* DASHBOARD_CLASS_NAME        = "TNTDashboardClass";
-static const char* SETTINGS_CLASS_NAME         = "TNTSettingsWindowClass";
-static const char* DEBUGLOG_CLASS_NAME         = "TNTDebugLogWindowClass";
-static const char* BOOK_CLASS_NAME             = "TNTBookWindowClass";
-static const char* BOOK_NEW_LIST_CLASS_NAME    = "TNTBookNewListWindowClass";
-static const char* COINS_CLASS_NAME            = "TNTCoinsWindowClass";
-static const char* ORDERS_CLASS_NAME           = "TNTOrdersWindowClass";
-static const char* NEWS_CLASS_NAME             = "TNTNewsWindowClass";
-static const char* NEWS_ARTICLE_CLASS_NAME     = "TNTNewsArticleWindowClass";
-static const char* DIAMONDS_CLASS_NAME         = "TNTDiamondsWindowClass";
-static const char* WATCHLIST_CLASS_NAME           = "TNTWatchlistWindowClass";
-static const char* MARKET_CLASS_NAME        = "TNTMarketWindowClass";
-static const char* MARKET_SEARCH_CLASS_NAME = "TNTTsSearchWindowClass";
+static const char* DASHBOARD_CLASS_NAME          = "TNTDashboardClass";
+static const char* SETTINGS_CLASS_NAME           = "TNTSettingsWindowClass";
+static const char* DEBUGLOG_CLASS_NAME           = "TNTDebugLogWindowClass";
+static const char* WATCHLIST_NEW_LIST_CLASS_NAME = "TNTWatchlistNewListWindowClass";
+static const char* COINS_CLASS_NAME              = "TNTCoinsWindowClass";
+static const char* ORDERS_CLASS_NAME             = "TNTOrdersWindowClass";
+static const char* NEWS_CLASS_NAME               = "TNTNewsWindowClass";
+static const char* NEWS_ARTICLE_CLASS_NAME       = "TNTNewsArticleWindowClass";
+static const char* DIAMONDS_CLASS_NAME           = "TNTDiamondsWindowClass";
+static const char* WATCHLIST_CLASS_NAME          = "TNTWatchlistWindowClass";
+static const char* MARKET_CLASS_NAME             = "TNTMarketWindowClass";
+static const char* MARKET_SEARCH_CLASS_NAME      = "TNTTsSearchWindowClass";
 
 // Dark mode colors
 #define DM_BG        RGB(30,  30,  30)   // Slightly darker, flatter background
@@ -439,6 +438,73 @@ void Session_RemoveWindow(HWND hWnd) {
     }
 }
 
+void Watchlist_DeleteList(const char* listName) {
+    HKEY hKey;
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Watchlist", APP_REG_ROOT);
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, fullPath, 0, KEY_WRITE, &hKey) == ERROR_SUCCESS) {
+        RegDeleteValueA(hKey, listName);
+        RegCloseKey(hKey);
+    }
+}
+
+void Watchlist_SaveFullList(const char* listName, const std::vector<std::string>& items) {
+    std::string multiStr;
+    for (const auto& item : items) {
+        multiStr += item;
+        multiStr += '\0';
+    }
+    multiStr += '\0';
+
+    HKEY hKey;
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Watchlist", APP_REG_ROOT);
+    if (RegCreateKeyExA(HKEY_CURRENT_USER, fullPath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        RegSetValueExA(hKey, listName, 0, REG_MULTI_SZ,
+            (const BYTE*)multiStr.data(), (DWORD)multiStr.size());
+        RegCloseKey(hKey);
+    }
+}
+
+// Returns every list name stored under the Watchlist registry key.
+// Shared by Watchlist_LoadAllLists (combo box) and any caller that only needs the names.
+std::vector<std::string> Watchlist_LoadAllListNames() {
+    std::vector<std::string> names;
+    HKEY hKey;
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Watchlist", APP_REG_ROOT);
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, fullPath, 0, KEY_READ, &hKey) != ERROR_SUCCESS)
+        return names;
+    char valueName[256];
+    DWORD index = 0, nameSize = sizeof(valueName);
+    while (RegEnumValueA(hKey, index++, valueName, &nameSize,
+                         NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+        names.push_back(valueName);
+        nameSize = sizeof(valueName);
+    }
+    RegCloseKey(hKey);
+    return names;
+}
+
+std::vector<std::string> Watchlist_ReadListEntries(const char* listName) {
+    std::vector<std::string> entries;
+    HKEY hKey;
+    char fullPath[256];
+    wsprintf(fullPath, "%s\\Watchlist", APP_REG_ROOT);
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, fullPath, 0, KEY_READ, &hKey) != ERROR_SUCCESS)
+        return entries;
+    DWORD type, size = 0;
+    RegQueryValueExA(hKey, listName, NULL, &type, NULL, &size);
+    if (size > 0) {
+        std::vector<char> buf(size);
+        RegQueryValueExA(hKey, listName, NULL, &type, (LPBYTE)buf.data(), &size);
+        const char* p = buf.data();
+        while (*p) { entries.push_back(p); p += strlen(p) + 1; }
+    }
+    RegCloseKey(hKey);
+    return entries;
+}
+
 // Check if a window is currently set to Always On Top
 // For single-instance windows (classNameOnly = true), checks the first window of that class
 // For multi-instance windows (classNameOnly = false), checks the window with the specific title/identifier
@@ -609,7 +675,6 @@ bool Settings_LoadMarketSplitter(const std::string& symbol, float& splitX, float
 }
 
 void Session_RestoreWindows(
-    const std::function<void()>& StartBook,
     const std::function<void()>& StartCoins,
     const std::function<void()>& StartDiamonds,
     const std::function<void()>& StartNews,
@@ -635,14 +700,7 @@ void Session_RestoreWindows(
     const char* p = buf.data();
     while (*p) {
         std::string cls = p;
-        if      (cls == BOOK_CLASS_NAME)      {
-            StartBook();
-            char key[256];
-            sprintf(key, "AlwaysOnTop_%s", BOOK_CLASS_NAME);
-            if(Settings_Load(key, 0))
-                ToggleWindowAlwaysOnTop(BOOK_CLASS_NAME);
-        }
-        else if (cls == COINS_CLASS_NAME)     {
+        if (cls == COINS_CLASS_NAME)     {
             StartCoins();
             char key[256];
             sprintf(key, "AlwaysOnTop_%s", COINS_CLASS_NAME);

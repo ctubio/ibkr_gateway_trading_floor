@@ -203,7 +203,7 @@ static std::string News_GetSelectedList() {
 
 static bool News_LoadListCombo(const std::string& savedList = "") {
     SendMessage(hNewsListCombo, CB_RESETCONTENT, 0, 0);
-    Book_LoadAllLists(hNewsListCombo);
+    Watchlist_LoadAllLists(hNewsListCombo);
     if ((int)SendMessage(hNewsListCombo, CB_GETCOUNT, 0, 0) == 0) return false;
     int idx = CB_ERR;
     if (!savedList.empty())
@@ -217,9 +217,9 @@ static bool News_LoadSymbolCombo(const std::string& savedEntry = "") {
     newsSymEntries.clear();
     std::string listName = News_GetSelectedList();
     if (listName.empty()) return false;
-    for (const auto& full : Book_ReadListEntries(listName.c_str())) {
+    for (const auto& full : Watchlist_ReadListEntries(listName.c_str())) {
         newsSymEntries.push_back(full);
-        SendMessageA(hNewsSymCombo, CB_ADDSTRING, 0, (LPARAM)Book_DisplayLabel(full).c_str());
+        SendMessageA(hNewsSymCombo, CB_ADDSTRING, 0, (LPARAM)Watchlist_DisplayLabel(full).c_str());
     }
     if (newsSymEntries.empty()) return false;
     int idx = CB_ERR;
