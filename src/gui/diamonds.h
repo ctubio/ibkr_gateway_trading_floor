@@ -417,11 +417,11 @@ static void Diamonds_Repopulate(HWND hWnd) {
     RedrawWindow(hList, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
     Diamonds_ApplySort(hList);
 
-    std::string title = "Diamonds: " + std::to_string(rows.size()) + " ";
+    std::string title = "Diamonds: " + std::to_string(rows.size());
     int activeTabs = 0;
     for (int i = 0; i < DIAMONDS_TAB_COUNT; ++i) {
         if (SendMessage(GetDlgItem(hWnd, ID_DIAMONDS_CHK_0 + i), BM_GETCHECK, 0, 0) == BST_CHECKED)
-            title += std::string(activeTabs++ == 0 ? "" : " + ") + g_DiamondTabNames[i];
+            title += std::string(activeTabs++ == 0 ? " " : " + ") + g_DiamondTabNames[i];
     }
     title += " Positions";
     SetWindowTextA(hWnd, title.c_str());

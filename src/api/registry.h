@@ -152,10 +152,17 @@ void SaveWinPosition(HWND hWnd) {
     DWORD h = (DWORD)(wp.rcNormalPosition.bottom - wp.rcNormalPosition.top);
     
     HKEY hKey;
-    char className[256] = {};
-    GetClassNameA(hWnd, className, sizeof(className));
+    HANDLE hProp = GetPropA(hWnd, "WinPositionKey");
+    std::string winKey;
+    if (hProp) {
+        winKey = *(std::string*)hProp; 
+    } else {
+        char className[256] = {};
+        GetClassNameA(hWnd, className, sizeof(className));
+        winKey = className;
+    }
     char fullPath[256];
-    wsprintf(fullPath, "%s\\WindowSettings\\%s", APP_REG_ROOT, className);
+    wsprintf(fullPath, "%s\\WindowSettings\\%s", APP_REG_ROOT, winKey.c_str());
 
     if (RegCreateKeyEx(HKEY_CURRENT_USER, fullPath, 0, NULL, 
         REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) 
@@ -585,11 +592,12 @@ static std::vector<MarketWindowInfo> EnumerateMarketWindows() {
         char title[256] = {};
         GetWindowTextA(hWnd, title, sizeof(title));
         
-        // Extract symbol from title (format: "Time & Sales: SYMBOL")
+        // Extract symbol from title (format: "Market: SYMBOL")
         std::string titleStr = title;
-        size_t pos = titleStr.find("Time & Sales: ");
+        std::string winTitle = "Market: ";
+        size_t pos = titleStr.find(winTitle);
         if (pos != std::string::npos) {
-            std::string symbol = titleStr.substr(pos + 14); // 14 = strlen("Time & Sales: ")
+            std::string symbol = titleStr.substr(pos + winTitle.length());
             result.push_back({hWnd, symbol});
         }
         
@@ -610,7 +618,7 @@ bool IsMarketAlwaysOnTop(const std::string& symbol) {
 // Toggle Always On Top for a specific Market window by symbol
 // Uses consistent registry key format based on symbol only
 void ToggleMarketAlwaysOnTop(const std::string& symbol) {
-    std::string fullTitle = "Time & Sales: " + symbol;
+    std::string fullTitle = "Market: " + symbol;
     HWND hWnd = FindWindowA(MARKET_CLASS_NAME, fullTitle.c_str());
     
     if (!hWnd) {

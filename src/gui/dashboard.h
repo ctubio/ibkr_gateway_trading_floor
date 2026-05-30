@@ -238,7 +238,7 @@ LRESULT CALLBACK WndProcDashboard(HWND hWnd, UINT message, WPARAM wParam, LPARAM
                     if (FindWindowA(COINS_CLASS_NAME, NULL))     AppendMenuW(hMenu, MF_STRING, ID_M_COINS,     IsWindowAlwaysOnTop(COINS_CLASS_NAME)     ? L"[ ★ ] Coins"     : L"[  ] Coins");
                     if (FindWindowA(DIAMONDS_CLASS_NAME, NULL))  AppendMenuW(hMenu, MF_STRING, ID_M_DIAMONDS,  IsWindowAlwaysOnTop(DIAMONDS_CLASS_NAME)  ? L"[ ★ ] Diamonds"  : L"[  ] Diamonds");
                     if (FindWindowA(ORDERS_CLASS_NAME, NULL))    AppendMenuW(hMenu, MF_STRING, ID_M_ORDERS,    IsWindowAlwaysOnTop(ORDERS_CLASS_NAME)    ? L"[ ★ ] Orders"    : L"[  ] Orders");
-                    if (FindWindowA(WATCHLIST_CLASS_NAME, NULL)) AppendMenuW(hMenu, MF_STRING, ID_M_WATCHLIST, IsWindowAlwaysOnTop(WATCHLIST_CLASS_NAME)    ? L"[ ★ ] Watchlist"    : L"[  ] Watchlist");
+                    if (FindWindowA(WATCHLIST_CLASS_NAME, NULL)) AppendMenuW(hMenu, MF_STRING, ID_M_WATCHLIST, IsWindowAlwaysOnTop(WATCHLIST_CLASS_NAME) ? L"[ ★ ] Watchlist" : L"[  ] Watchlist");
                     
                     auto tsWindows = EnumerateMarketWindows();
                     std::sort(tsWindows.begin(), tsWindows.end(), [](const auto& a, const auto& b) {

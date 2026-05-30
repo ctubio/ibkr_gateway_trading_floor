@@ -17,6 +17,8 @@ HWND StartMarket(const std::string& symbol = "", int conId = 0);
 #define ID_TS_SEARCH_INPUT  6007
 #define ID_TS_SEARCH_LIST   6008
 
+static ListViewZoomData MarketZoomData = { NULL, NULL, 14, "Zoom_Market" };
+
 // State mapped per-window to support infinite instances safely
 struct TsState {
     HWND hTsList = NULL;
@@ -182,11 +184,11 @@ LRESULT CALLBACK WndProcTsSearch(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
     switch (message) {
         case WM_CREATE: {
             HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
-            CreateWindowA("STATIC", "Search Symbol:", WS_CHILD | WS_VISIBLE, 10, 10, 150, 20, hWnd, NULL, hInst, NULL);
-            HWND hTsSearchEdit = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_UPPERCASE | ES_AUTOHSCROLL, 10, 30, 240, 24, hWnd, (HMENU)ID_TS_SEARCH_INPUT, hInst, NULL);
+            HWND hTsSearchEdit = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_UPPERCASE | ES_AUTOHSCROLL, 10, 10, 240, 24, hWnd, (HMENU)ID_TS_SEARCH_INPUT, hInst, NULL);
             SetWindowSubclass(hTsSearchEdit, TsSearchEditSubclass, 1, 0);
-            HWND hTsSearchList = CreateWindowA("LISTBOX", "", WS_CHILD | WS_VISIBLE | WS_BORDER | LBS_NOTIFY, 10, 60, 240, 150, hWnd, (HMENU)ID_TS_SEARCH_LIST, hInst, NULL);
+            HWND hTsSearchList = CreateWindowA("LISTBOX", "", WS_CHILD | WS_VISIBLE | WS_BORDER | LBS_NOTIFY, 10, 40, 240, 180, hWnd, (HMENU)ID_TS_SEARCH_LIST, hInst, NULL);
             SetWindowSubclass(hTsSearchList, TsSearchListSubclass, 2, 0);
+            ApplyListViewFont(hTsSearchList, MarketZoomData.hFont, MarketZoomData.hBoldFont, MarketZoomData.fontSize);
             SetFocus(hTsSearchEdit);
             break;
         }
@@ -227,9 +229,9 @@ void StartMarketSearch() {
         RegisterClass(&wc);
         registered = true;
     }
-    HWND hWnd = CreateWindowExA(WS_EX_DLGMODALFRAME | WS_EX_TOPMOST, MARKET_SEARCH_CLASS_NAME, "Time & Sales: Search Symbol", 
+    HWND hWnd = CreateWindowExA(WS_EX_DLGMODALFRAME | WS_EX_TOPMOST, MARKET_SEARCH_CLASS_NAME, "Market: Search Symbol", 
         WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE, 
-        (GetSystemMetrics(SM_CXSCREEN) - 260) / 2, (GetSystemMetrics(SM_CYSCREEN) - 240) / 2, 275, 260, 
+        (GetSystemMetrics(SM_CXSCREEN) - 268) / 2, (GetSystemMetrics(SM_CYSCREEN) - 255) / 2, 268, 255, 
         NULL, NULL, GetModuleHandle(NULL), NULL);
     ApplyDarkMode(hWnd);
 }
@@ -241,7 +243,7 @@ HWND StartMarket(const std::string& symbol, int conId) {
     }
     std::string key = MARKET_CLASS_NAME + std::string("_") + std::to_string(conId);
     TsInitData* data = new TsInitData{symbol, conId};
-    return StartGenericWindow(MARKET_CLASS_NAME, ("Time & Sales: " + symbol).c_str(), L"IBKRGatewayClient.Market", 380, 500, NULL, key, data);
+    return StartGenericWindow(MARKET_CLASS_NAME, ("Market: " + symbol).c_str(), L"IBKRGatewayClient.Market", 380, 500, NULL, key, data);
 }
 
 static int HitTestSplitter(HWND hWnd, TsState* state, int x, int y) {

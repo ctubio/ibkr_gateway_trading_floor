@@ -52,7 +52,9 @@ HWND StartGenericWindow(const char* className, const char* title, const wchar_t*
     int w = defaultW, h = defaultH;
     int x = (GetSystemMetrics(SM_CXSCREEN) - w) / 2;
     int y = (GetSystemMetrics(SM_CYSCREEN) - h) / 2;
-    LoadWinPosition(className, x, y, w, h);
+    
+    std::string* winPostionKey = new std::string(multiInstance ? windowKey.c_str() : className);
+    LoadWinPosition(winPostionKey->c_str(), x, y, w, h);
 
     if (hInst) {
         hWnd = CreateWindow(className, title, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, x, y, w, h, NULL, NULL, hInst, lpParam);
@@ -87,6 +89,8 @@ HWND StartGenericWindow(const char* className, const char* title, const wchar_t*
         }
         hWnd = CreateWindowExA(dwExStyle, className, title, dwStyle, x, y, w, h, hWndParent, NULL, GetModuleHandle(NULL), lpParam);
     }
+
+    SetPropA(hWnd, "WinPositionKey", (HANDLE)winPostionKey);
 
     if (strcmp(className, WATCHLIST_NEW_LIST_CLASS_NAME) != 0)
         SetWindowTaskbarId(hWnd, taskbarId);
@@ -247,7 +251,7 @@ void ClearAlwaysOnTopSetting(HWND hWnd) {
         char title[256] = {};
         GetWindowTextA(hWnd, title, sizeof(title));
         const std::string titleStr = title;
-        const std::string prefix = "Time & Sales: ";
+        const std::string prefix = "Market: ";
         size_t pos = titleStr.find(prefix);
         if (pos == std::string::npos) {
             return;
